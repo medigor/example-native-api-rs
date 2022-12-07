@@ -37,6 +37,7 @@ pub struct Tm {
 pub struct ReturnValue<'a> {
     mem: &'a MemoryManager,
     variant: &'a mut TVariant,
+    result: &'a mut bool,
 }
 
 #[allow(dead_code)]
@@ -66,6 +67,7 @@ impl<'a> ReturnValue<'a> {
 
     pub fn set_str(self, val: &[u16]) {
         let Some(data) = self.mem.alloc_memory::<u16>(val.len()) else {
+            *self.result = false;
             return;
         };
 
@@ -78,6 +80,7 @@ impl<'a> ReturnValue<'a> {
 
     pub fn set_blob(self, val: &[u8]) {
         let Some(data) = self.mem.alloc_memory::<u8>(val.len()) else {
+            *self.result = false;
             return;
         };
 
@@ -90,6 +93,7 @@ impl<'a> ReturnValue<'a> {
 
     pub fn alloc_str(self, len: usize) -> Option<&'a mut [u16]> {
         let Some(data) = self.mem.alloc_memory::<u16>(len) else {
+            *self.result = false;
             return None;
         };
 
@@ -102,6 +106,7 @@ impl<'a> ReturnValue<'a> {
 
     pub fn alloc_blob(self, len: usize) -> Option<&'a mut [u8]> {
         let Some(data) = self.mem.alloc_memory::<u8>(len) else {
+            *self.result = false;
             return None;
         };
 
@@ -385,8 +390,13 @@ unsafe extern "system" fn get_prop_val<T: Addin>(
         return false;
     };
 
-    let return_value = ReturnValue { mem, variant: val };
-    component.addin.get_prop_val(num as usize, return_value)
+    let mut result = true;
+    let return_value = ReturnValue {
+        mem,
+        variant: val,
+        result: &mut result,
+    };
+    component.addin.get_prop_val(num as usize, return_value) && result
 }
 
 unsafe extern "system" fn set_prop_val<T: Addin>(
@@ -466,11 +476,17 @@ unsafe extern "system" fn get_param_def_value<T: Addin>(
         return false;
     };
 
-    let return_value = ReturnValue { mem, variant: val };
+    let mut result = true;
+    let return_value = ReturnValue {
+        mem,
+        variant: val,
+        result: &mut result,
+    };
 
     component
         .addin
         .get_param_def_value(method_num as usize, param_num as usize, return_value)
+        && result
 }
 
 unsafe extern "system" fn has_ret_val<T: Addin>(
@@ -507,9 +523,11 @@ unsafe extern "system" fn call_as_func<T: Addin>(
         return false;
     };
 
+    let mut result = true;
     let return_value = ReturnValue {
         mem,
         variant: ret_value,
+        result: &mut result,
     };
 
     let param_values = from_raw_parts(params, size_array as usize)
@@ -520,6 +538,7 @@ unsafe extern "system" fn call_as_func<T: Addin>(
     component
         .addin
         .call_as_func(method_num as usize, param_values.as_slice(), return_value)
+        && result
 }
 
 #[repr(C)]
