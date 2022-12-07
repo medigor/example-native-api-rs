@@ -140,9 +140,14 @@ impl Addin for Addin1 {
 
     fn is_prop_writable(&mut self, num: usize) -> bool {
         match num {
+            0 => false,
+            1 => true,
             2 => true,
             3 => true,
-            _ => true,
+            4 => true,
+            5 => true,
+            6 => true,
+            _ => false,
         }
     }
 

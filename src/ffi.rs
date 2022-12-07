@@ -289,11 +289,8 @@ struct LanguageExtenderBaseVTable<T: Addin> {
     find_prop: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, *const u16) -> c_long,
     get_prop_name:
         unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, c_long) -> *const u16,
-    get_prop_val: for<'a> unsafe extern "system" fn(
-        &mut LanguageExtenderBase<T>,
-        c_long,
-        &'a mut TVariant,
-    ) -> bool,
+    get_prop_val:
+        unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, &mut TVariant) -> bool,
     set_prop_val:
         unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, &TVariant) -> bool,
     is_prop_readable: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long) -> bool,
@@ -316,7 +313,7 @@ struct LanguageExtenderBaseVTable<T: Addin> {
         *const TVariant,
         c_long,
     ) -> bool,
-    call_as_func: for<'a> unsafe extern "system" fn(
+    call_as_func: unsafe extern "system" fn(
         &mut LanguageExtenderBase<T>,
         c_long,
         &mut TVariant,
@@ -379,10 +376,10 @@ unsafe extern "system" fn get_prop_name<T: Addin>(
     name.as_ptr()
 }
 
-unsafe extern "system" fn get_prop_val<'a, T: Addin>(
+unsafe extern "system" fn get_prop_val<T: Addin>(
     component: &mut LanguageExtenderBase<T>,
     num: c_long,
-    val: &'a mut TVariant,
+    val: &mut TVariant,
 ) -> bool {
     let Some(mem) = component.memory else {
         return false;
@@ -499,10 +496,10 @@ unsafe extern "system" fn call_as_proc<T: Addin>(
         .call_as_proc(method_num as usize, param_values.as_slice())
 }
 
-unsafe extern "system" fn call_as_func<'a, T: Addin>(
+unsafe extern "system" fn call_as_func<T: Addin>(
     component: &mut LanguageExtenderBase<T>,
     method_num: c_long,
-    ret_value: &'a mut TVariant,
+    ret_value: &mut TVariant,
     params: *const TVariant,
     size_array: c_long,
 ) -> bool {
