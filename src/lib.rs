@@ -46,10 +46,8 @@ pub extern "C" fn GetClassNames() -> *const u16 {
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
-    unsafe {
-        PLATFORM_CAPABILITIES.store(capabilities, Ordering::Relaxed);
-    }
+pub unsafe extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
+    PLATFORM_CAPABILITIES.store(capabilities, Ordering::Relaxed);
     3
 }
 

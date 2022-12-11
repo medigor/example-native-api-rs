@@ -342,7 +342,7 @@ unsafe extern "system" fn register_extension_as<T: Addin>(
         return false;
     };
     data.copy_from_slice(extension_name);
-    unsafe { *name = data.as_mut_ptr() };
+    *name = data.as_mut_ptr();
 
     true
 }
@@ -704,11 +704,10 @@ pub struct Connection {
 unsafe fn get_str<'a>(s: *const u16) -> &'a [u16] {
     unsafe fn strlen(s: *const u16) -> usize {
         let mut i = 0;
-        while unsafe { *s.add(i) } != 0 {
+        while *s.add(i) != 0 {
             i += 1;
         }
-        i += 1;
-        i
+        i + 1
     }
 
     let len = strlen(s);
