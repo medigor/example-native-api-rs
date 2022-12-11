@@ -26,12 +26,12 @@ pub struct Addin1 {
 impl Addin1 {
     pub fn new() -> Addin1 {
         Addin1 {
-            test: 12345,
-            prop_i32: 0,
-            prop_f64: 0.0,
+            test: 11111,
+            prop_i32: 22222,
+            prop_f64: 333.33,
             prop_bool: false,
             prop_date: Tm::default(),
-            prop_str: String::new(),
+            prop_str: String::from("00000"),
             prop_blob: Vec::new(),
         }
     }
@@ -78,7 +78,7 @@ impl Addin for Addin1 {
             6 => {
                 val.set_blob(self.prop_blob.as_slice());
             }
-            _ => (),
+            _ => return false,
         };
         true
     }

@@ -14,7 +14,6 @@ pub enum AttachType {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 #[derive(Clone, Copy, Default)]
 pub struct Tm {
     pub sec: c_int,   // seconds after the minute - [0, 60] including leap second
@@ -33,7 +32,6 @@ pub struct Tm {
     pub zone: std::ffi::c_char, // timezone abbreviation
 }
 
-#[allow(dead_code)]
 pub struct ReturnValue<'a> {
     mem: &'a MemoryManager,
     variant: &'a mut TVariant,
@@ -184,7 +182,6 @@ enum VariantType {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 struct DataStr {
     pub ptr: *mut u16,
@@ -192,7 +189,6 @@ struct DataStr {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 struct DataBlob {
     pub ptr: *mut u8,
@@ -210,7 +206,6 @@ union VariantValue {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct TVariant {
     value: VariantValue,
     elements: u32, //Dimension for an one-dimensional array in pvarVal
@@ -251,79 +246,80 @@ pub trait Addin {
 }
 
 #[repr(C)]
-//#[allow(dead_code)]
+struct This<const OFFSET: usize, T: Addin> {
+    ptr: *mut Component<T>,
+}
+
+impl<'a, const OFFSET: usize, T: Addin> This<OFFSET, T> {
+    unsafe fn get_component(&mut self) -> &'a mut Component<T> {
+        let new_ptr = (self as *mut This<OFFSET, T> as *mut c_void)
+            .sub(OFFSET * std::mem::size_of::<usize>());
+        &mut *(new_ptr as *mut Component<T>)
+    }
+}
+
+#[repr(C)]
 struct InitDoneBaseVTable<T: Addin> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    init: unsafe extern "system" fn(&mut InitDoneBase<T>, &'static Connection) -> bool,
-    set_mem_manager:
-        unsafe extern "system" fn(&mut InitDoneBase<T>, &'static MemoryManager) -> bool,
-    get_info: unsafe extern "system" fn(&mut InitDoneBase<T>) -> c_long,
-    done: unsafe extern "system" fn(&mut InitDoneBase<T>),
+    init: unsafe extern "system" fn(&mut This<0, T>, &'static Connection) -> bool,
+    set_mem_manager: unsafe extern "system" fn(&mut This<0, T>, &'static MemoryManager) -> bool,
+    get_info: unsafe extern "system" fn(&mut This<0, T>) -> c_long,
+    done: unsafe extern "system" fn(&mut This<0, T>),
 }
 
 unsafe extern "system" fn init<T: Addin>(
-    component: &mut InitDoneBase<T>,
+    this: &mut This<0, T>,
     interface: &'static Connection,
 ) -> bool {
+    let component = this.get_component();
     component.addin.init(interface)
 }
 
 unsafe extern "system" fn set_mem_manager<T: Addin>(
-    component: &mut InitDoneBase<T>,
+    this: &mut This<0, T>,
     mem: &'static MemoryManager,
 ) -> bool {
+    let component = this.get_component();
     component.memory = Some(mem);
     true
 }
 
-unsafe extern "system" fn get_info<T: Addin>(component: &mut InitDoneBase<T>) -> c_long {
+unsafe extern "system" fn get_info<T: Addin>(this: &mut This<0, T>) -> c_long {
+    let component = this.get_component();
     component.addin.get_info() as c_long
 }
 
-unsafe extern "system" fn done<T: Addin>(component: &mut InitDoneBase<T>) {
+unsafe extern "system" fn done<T: Addin>(this: &mut This<0, T>) {
+    let component = this.get_component();
     component.addin.done()
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct LanguageExtenderBaseVTable<T: Addin> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    register_extension_as:
-        unsafe extern "system" fn(&mut LanguageExtenderBase<T>, *mut *mut u16) -> bool,
-    get_n_props: unsafe extern "system" fn(&mut LanguageExtenderBase<T>) -> c_long,
-    find_prop: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, *const u16) -> c_long,
-    get_prop_name:
-        unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, c_long) -> *const u16,
-    get_prop_val:
-        unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, &mut TVariant) -> bool,
-    set_prop_val:
-        unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, &TVariant) -> bool,
-    is_prop_readable: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long) -> bool,
-    is_prop_writable: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long) -> bool,
-    get_n_methods: unsafe extern "system" fn(&mut LanguageExtenderBase<T>) -> c_long,
-    find_method: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, *const u16) -> c_long,
-    get_method_name:
-        unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long, c_long) -> *const u16,
-    get_n_params: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long) -> c_long,
-    get_param_def_value: unsafe extern "system" fn(
-        &mut LanguageExtenderBase<T>,
-        c_long,
-        c_long,
-        &mut TVariant,
-    ) -> bool,
-    has_ret_val: unsafe extern "system" fn(&mut LanguageExtenderBase<T>, c_long) -> bool,
-    call_as_proc: unsafe extern "system" fn(
-        &mut LanguageExtenderBase<T>,
-        c_long,
-        *const TVariant,
-        c_long,
-    ) -> bool,
+    register_extension_as: unsafe extern "system" fn(&mut This<1, T>, *mut *mut u16) -> bool,
+    get_n_props: unsafe extern "system" fn(&mut This<1, T>) -> c_long,
+    find_prop: unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
+    get_prop_name: unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
+    get_prop_val: unsafe extern "system" fn(&mut This<1, T>, c_long, &mut TVariant) -> bool,
+    set_prop_val: unsafe extern "system" fn(&mut This<1, T>, c_long, &TVariant) -> bool,
+    is_prop_readable: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
+    is_prop_writable: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
+    get_n_methods: unsafe extern "system" fn(&mut This<1, T>) -> c_long,
+    find_method: unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
+    get_method_name: unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
+    get_n_params: unsafe extern "system" fn(&mut This<1, T>, c_long) -> c_long,
+    get_param_def_value:
+        unsafe extern "system" fn(&mut This<1, T>, c_long, c_long, &mut TVariant) -> bool,
+    has_ret_val: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
+    call_as_proc:
+        unsafe extern "system" fn(&mut This<1, T>, c_long, *const TVariant, c_long) -> bool,
     call_as_func: unsafe extern "system" fn(
-        &mut LanguageExtenderBase<T>,
+        &mut This<1, T>,
         c_long,
         &mut TVariant,
         *const TVariant,
@@ -332,9 +328,10 @@ struct LanguageExtenderBaseVTable<T: Addin> {
 }
 
 unsafe extern "system" fn register_extension_as<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     name: *mut *mut u16,
 ) -> bool {
+    let component = this.get_component();
     let Some(allocator) = component.memory else {
         return false;
     };
@@ -350,14 +347,13 @@ unsafe extern "system" fn register_extension_as<T: Addin>(
     true
 }
 
-unsafe extern "system" fn get_n_props<T: Addin>(component: &mut LanguageExtenderBase<T>) -> c_long {
+unsafe extern "system" fn get_n_props<T: Addin>(this: &mut This<1, T>) -> c_long {
+    let component = this.get_component();
     component.addin.get_n_props() as c_long
 }
 
-unsafe extern "system" fn find_prop<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-    name: *const u16,
-) -> c_long {
+unsafe extern "system" fn find_prop<T: Addin>(this: &mut This<1, T>, name: *const u16) -> c_long {
+    let component = this.get_component();
     let name = get_str(name);
     match component.addin.find_prop(name) {
         Some(i) => i as c_long,
@@ -366,10 +362,11 @@ unsafe extern "system" fn find_prop<T: Addin>(
 }
 
 unsafe extern "system" fn get_prop_name<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     num: c_long,
     alias: c_long,
 ) -> *const u16 {
+    let component = this.get_component();
     let Some(allocator) = component.memory else {
         return ptr::null();
     };
@@ -385,10 +382,11 @@ unsafe extern "system" fn get_prop_name<T: Addin>(
 }
 
 unsafe extern "system" fn get_prop_val<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    component: &mut This<1, T>,
     num: c_long,
     val: &mut TVariant,
 ) -> bool {
+    let component = component.get_component();
     let Some(mem) = component.memory else {
         return false;
     };
@@ -403,38 +401,32 @@ unsafe extern "system" fn get_prop_val<T: Addin>(
 }
 
 unsafe extern "system" fn set_prop_val<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     num: c_long,
     val: &TVariant,
 ) -> bool {
+    let component = this.get_component();
     let param = ParamValue::from(val);
     component.addin.set_prop_val(num as usize, &param)
 }
 
-unsafe extern "system" fn is_prop_readable<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-    num: c_long,
-) -> bool {
+unsafe extern "system" fn is_prop_readable<T: Addin>(this: &mut This<1, T>, num: c_long) -> bool {
+    let component = this.get_component();
     component.addin.is_prop_readable(num as usize)
 }
 
-unsafe extern "system" fn is_prop_writable<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-    num: c_long,
-) -> bool {
+unsafe extern "system" fn is_prop_writable<T: Addin>(this: &mut This<1, T>, num: c_long) -> bool {
+    let component = this.get_component();
     component.addin.is_prop_writable(num as usize)
 }
 
-unsafe extern "system" fn get_n_methods<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-) -> c_long {
+unsafe extern "system" fn get_n_methods<T: Addin>(this: &mut This<1, T>) -> c_long {
+    let component = this.get_component();
     component.addin.get_n_methods() as c_long
 }
 
-unsafe extern "system" fn find_method<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-    name: *const u16,
-) -> c_long {
+unsafe extern "system" fn find_method<T: Addin>(this: &mut This<1, T>, name: *const u16) -> c_long {
+    let component = this.get_component();
     let name = get_str(name);
     match component.addin.find_method(name) {
         Some(i) => i as c_long,
@@ -443,10 +435,11 @@ unsafe extern "system" fn find_method<T: Addin>(
 }
 
 unsafe extern "system" fn get_method_name<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     num: c_long,
     alias: c_long,
 ) -> *const u16 {
+    let component = this.get_component();
     let Some(allocator) = component.memory else {
         return ptr::null();
     };
@@ -461,19 +454,18 @@ unsafe extern "system" fn get_method_name<T: Addin>(
     name.as_ptr()
 }
 
-unsafe extern "system" fn get_n_params<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-    num: c_long,
-) -> c_long {
+unsafe extern "system" fn get_n_params<T: Addin>(this: &mut This<1, T>, num: c_long) -> c_long {
+    let component = this.get_component();
     component.addin.get_n_params(num as usize) as c_long
 }
 
 unsafe extern "system" fn get_param_def_value<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     method_num: c_long,
     param_num: c_long,
     val: &mut TVariant,
 ) -> bool {
+    let component = this.get_component();
     let Some(mem) = component.memory else {
         return false;
     };
@@ -491,19 +483,18 @@ unsafe extern "system" fn get_param_def_value<T: Addin>(
         && result
 }
 
-unsafe extern "system" fn has_ret_val<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
-    method_num: c_long,
-) -> bool {
+unsafe extern "system" fn has_ret_val<T: Addin>(this: &mut This<1, T>, method_num: c_long) -> bool {
+    let component = this.get_component();
     component.addin.has_ret_val(method_num as usize)
 }
 
 unsafe extern "system" fn call_as_proc<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     method_num: c_long,
     params: *const TVariant,
     size_array: c_long,
 ) -> bool {
+    let component = this.get_component();
     let param_values = from_raw_parts(params, size_array as usize)
         .iter()
         .map(|x| ParamValue::from(x))
@@ -515,12 +506,13 @@ unsafe extern "system" fn call_as_proc<T: Addin>(
 }
 
 unsafe extern "system" fn call_as_func<T: Addin>(
-    component: &mut LanguageExtenderBase<T>,
+    this: &mut This<1, T>,
     method_num: c_long,
     ret_value: &mut TVariant,
     params: *const TVariant,
     size_array: c_long,
 ) -> bool {
+    let component = this.get_component();
     let Some(mem) = component.memory else {
         return false;
     };
@@ -544,93 +536,50 @@ unsafe extern "system" fn call_as_func<T: Addin>(
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct LocaleBaseVTable<T: Addin> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    set_locale: unsafe extern "system" fn(&mut LocaleBase<T>, *const u16),
+    set_locale: unsafe extern "system" fn(&mut This<2, T>, *const u16),
 }
 
-unsafe extern "system" fn set_locale<T: Addin>(component: &mut LocaleBase<T>, loc: *const u16) {
+unsafe extern "system" fn set_locale<T: Addin>(this: &mut This<2, T>, loc: *const u16) {
+    let component = this.get_component();
     let loc = get_str(loc);
     component.addin.set_locale(loc)
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct UserLanguageBaseVTable<T: Addin> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    set_user_interface_language_code:
-        unsafe extern "system" fn(&mut UserLanguageBase<T>, *const u16),
+    set_user_interface_language_code: unsafe extern "system" fn(&mut This<3, T>, *const u16),
 }
 
 unsafe extern "system" fn set_user_interface_language_code<T: Addin>(
-    component: &mut UserLanguageBase<T>,
+    this: &mut This<3, T>,
     lang: *const u16,
 ) {
+    let component = this.get_component();
     let lang = get_str(lang);
     component.addin.set_user_interface_language_code(lang)
 }
 
 #[repr(C)]
-#[allow(dead_code)]
-struct ComponentBase<T: Addin> {
+struct Component<T: Addin> {
     vptr1: Box<InitDoneBaseVTable<T>>,
     vptr2: Box<LanguageExtenderBaseVTable<T>>,
     vptr3: Box<LocaleBaseVTable<T>>,
     vptr4: Box<UserLanguageBaseVTable<T>>,
-    destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
+    destroy: unsafe extern "system" fn(*mut *mut Component<T>),
     memory: Option<&'static MemoryManager>,
     addin: T,
 }
 
-unsafe extern "system" fn destroy<T: Addin>(component: *mut *mut ComponentBase<T>) {
+unsafe extern "system" fn destroy<T: Addin>(component: *mut *mut Component<T>) {
     let comp = Box::from_raw(*component);
     drop(comp);
-}
-
-#[repr(C)]
-struct InitDoneBase<T: Addin> {
-    _vptr1: usize,
-    _vptr2: usize,
-    _vptr3: usize,
-    _vptr4: usize,
-    destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
-    memory: Option<&'static MemoryManager>,
-    addin: T,
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-struct LanguageExtenderBase<T: Addin> {
-    _vptr2: usize,
-    _vptr3: usize,
-    _vptr4: usize,
-    destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
-    memory: Option<&'static MemoryManager>,
-    addin: T,
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-struct LocaleBase<T: Addin> {
-    _vptr3: usize,
-    _vptr4: usize,
-    destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
-    memory: Option<&'static MemoryManager>,
-    addin: T,
-}
-
-#[repr(C)]
-#[allow(dead_code)]
-struct UserLanguageBase<T: Addin> {
-    _vptr4: usize,
-    destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
-    memory: Option<&'static MemoryManager>,
-    addin: T,
 }
 
 pub unsafe fn create_component<T: Addin>(component: *mut *mut c_void, addin: T) -> c_long {
@@ -680,7 +629,7 @@ pub unsafe fn create_component<T: Addin>(component: *mut *mut c_void, addin: T) 
         set_user_interface_language_code,
     });
 
-    let c = Box::new(ComponentBase {
+    let c = Box::new(Component {
         vptr1,
         vptr2,
         vptr3,
@@ -713,7 +662,6 @@ pub unsafe fn destroy_component(component: *mut *mut c_void) -> c_long {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct MemoryManagerVTable {
     dtor: usize,
     #[cfg(target_family = "unix")]
@@ -723,7 +671,6 @@ struct MemoryManagerVTable {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct MemoryManager {
     vptr1: &'static MemoryManagerVTable,
 }
@@ -743,7 +690,6 @@ impl MemoryManager {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct ConnectionVTable {
     dtor: usize,
     #[cfg(target_family = "unix")]
@@ -751,7 +697,6 @@ struct ConnectionVTable {
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 pub struct Connection {
     vptr1: &'static ConnectionVTable,
 }
