@@ -14,6 +14,7 @@ const PROPS: &[&[u16]] = &[
 const METHODS: &[&[u16]] = &[&utf16_null!("Method1")];
 
 pub struct Addin1 {
+    test: i32,
     prop_i32: i32,
     prop_f64: f64,
     prop_bool: bool,
@@ -25,6 +26,7 @@ pub struct Addin1 {
 impl Addin1 {
     pub fn new() -> Addin1 {
         Addin1 {
+            test: 12345,
             prop_i32: 0,
             prop_f64: 0.0,
             prop_bool: false,
@@ -42,10 +44,6 @@ impl Drop for Addin1 {
 impl Addin for Addin1 {
     fn init(&mut self, _interface: &'static Connection) -> bool {
         true
-    }
-
-    fn get_info(&mut self) -> u16 {
-        1000
     }
 
     fn done(&mut self) {}
@@ -68,7 +66,7 @@ impl Addin for Addin1 {
 
     fn get_prop_val(&mut self, num: usize, val: ReturnValue) -> bool {
         match num {
-            0 => val.set_i32(111226),
+            0 => val.set_i32(self.test),
             1 => val.set_i32(self.prop_i32),
             2 => val.set_f64(self.prop_f64),
             3 => val.set_bool(self.prop_bool),
@@ -87,6 +85,13 @@ impl Addin for Addin1 {
 
     fn set_prop_val(&mut self, num: usize, val: &ParamValue) -> bool {
         match num {
+            0 => match val {
+                ParamValue::I32(x) => {
+                    self.test = *x;
+                    true
+                }
+                _ => false,
+            },
             1 => match val {
                 ParamValue::I32(x) => {
                     self.prop_i32 = *x;
@@ -140,7 +145,7 @@ impl Addin for Addin1 {
 
     fn is_prop_writable(&mut self, num: usize) -> bool {
         match num {
-            0 => false,
+            0 => true,
             1 => true,
             2 => true,
             3 => true,

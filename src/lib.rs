@@ -1,8 +1,9 @@
 mod addin1;
+mod addin2;
 mod ffi;
 
 use std::{
-    ffi::{c_long, c_void, c_int},
+    ffi::{c_int, c_long, c_void},
     sync::atomic::{AtomicI32, Ordering},
 };
 
@@ -10,36 +11,42 @@ use addin1::Addin1;
 use ffi::{destroy_component, AttachType};
 use utf16_lit::utf16_null;
 
-use crate::ffi::create_component;
+use crate::{addin2::Addin2, ffi::create_component};
 
 pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub extern "C" fn GetClassObject(_name: *const u16, component: *mut *mut c_void) -> c_long {
-    let addin = Addin1::new();
-    unsafe {
-        *component = create_component(addin);
+pub unsafe extern "C" fn GetClassObject(name: *const u16, component: *mut *mut c_void) -> c_long {
+    match *name as u8 {
+        b'1' => {
+            let addin = Addin1::new();
+            create_component(component, addin)
+        }
+        b'2' => {
+            let addin = Addin2::new();
+            create_component(component, addin)
+        }
+        _ => 0,
     }
-    1
 }
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub extern "C" fn DestroyObject(component: *mut *mut c_void) -> c_long {
-    destroy_component(component);
-    0
+pub unsafe extern "C" fn DestroyObject(component: *mut *mut c_void) -> c_long {
+    destroy_component(component)
 }
 
 #[allow(non_snake_case)]
 #[no_mangle]
 pub extern "C" fn GetClassNames() -> *const u16 {
-    utf16_null!("Class1").as_ptr()
+    // small strings for performance
+    utf16_null!("1|2").as_ptr()
 }
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_long {
+pub extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
     unsafe {
         PLATFORM_CAPABILITIES.store(capabilities, Ordering::Relaxed);
     }

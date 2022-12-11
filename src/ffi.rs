@@ -219,7 +219,11 @@ struct TVariant {
 
 pub trait Addin {
     fn init(&mut self, interface: &'static Connection) -> bool;
-    fn get_info(&mut self) -> u16;
+
+    /// default 2000, don't use version 1000, because static objects are created
+    fn get_info(&mut self) -> u16 {
+        2000
+    }
     fn done(&mut self);
     fn register_extension_as(&mut self) -> &'static [u16];
     fn get_n_props(&mut self) -> usize;
@@ -354,8 +358,7 @@ unsafe extern "system" fn find_prop<T: Addin>(
     component: &mut LanguageExtenderBase<T>,
     name: *const u16,
 ) -> c_long {
-    let len = strlen(name);
-    let name = from_raw_parts(name, len);
+    let name = get_str(name);
     match component.addin.find_prop(name) {
         Some(i) => i as c_long,
         None => -1,
@@ -432,8 +435,7 @@ unsafe extern "system" fn find_method<T: Addin>(
     component: &mut LanguageExtenderBase<T>,
     name: *const u16,
 ) -> c_long {
-    let len = strlen(name);
-    let name = from_raw_parts(name, len);
+    let name = get_str(name);
     match component.addin.find_method(name) {
         Some(i) => i as c_long,
         None => -1,
@@ -551,8 +553,7 @@ struct LocaleBaseVTable<T: Addin> {
 }
 
 unsafe extern "system" fn set_locale<T: Addin>(component: &mut LocaleBase<T>, loc: *const u16) {
-    let len = strlen(loc);
-    let loc = from_raw_parts(loc, len);
+    let loc = get_str(loc);
     component.addin.set_locale(loc)
 }
 
@@ -570,8 +571,7 @@ unsafe extern "system" fn set_user_interface_language_code<T: Addin>(
     component: &mut UserLanguageBase<T>,
     lang: *const u16,
 ) {
-    let len = strlen(lang);
-    let lang = from_raw_parts(lang, len);
+    let lang = get_str(lang);
     component.addin.set_user_interface_language_code(lang)
 }
 
@@ -588,30 +588,27 @@ struct ComponentBase<T: Addin> {
 }
 
 unsafe extern "system" fn destroy<T: Addin>(component: *mut *mut ComponentBase<T>) {
-    let component = unsafe { Box::from_raw(*component) };
-    drop(component);
+    let comp = Box::from_raw(*component);
+    drop(comp);
 }
 
 #[repr(C)]
-#[allow(dead_code)]
 struct InitDoneBase<T: Addin> {
-    _vptr1: Box<InitDoneBaseVTable<T>>,
-    _vptr2: Box<LanguageExtenderBaseVTable<T>>,
-    _vptr3: Box<LocaleBaseVTable<T>>,
-    _vptr4: Box<UserLanguageBaseVTable<T>>,
+    _vptr1: usize,
+    _vptr2: usize,
+    _vptr3: usize,
+    _vptr4: usize,
     destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
     memory: Option<&'static MemoryManager>,
     addin: T,
 }
 
-// type InitDoneBase<T> = ComponentBase<T>;
-
 #[repr(C)]
 #[allow(dead_code)]
 struct LanguageExtenderBase<T: Addin> {
-    _vptr2: Box<LanguageExtenderBaseVTable<T>>,
-    _vptr3: Box<LocaleBaseVTable<T>>,
-    _vptr4: Box<UserLanguageBaseVTable<T>>,
+    _vptr2: usize,
+    _vptr3: usize,
+    _vptr4: usize,
     destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
     memory: Option<&'static MemoryManager>,
     addin: T,
@@ -620,8 +617,8 @@ struct LanguageExtenderBase<T: Addin> {
 #[repr(C)]
 #[allow(dead_code)]
 struct LocaleBase<T: Addin> {
-    _vptr3: Box<LocaleBaseVTable<T>>,
-    _vptr4: Box<UserLanguageBaseVTable<T>>,
+    _vptr3: usize,
+    _vptr4: usize,
     destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
     memory: Option<&'static MemoryManager>,
     addin: T,
@@ -630,13 +627,13 @@ struct LocaleBase<T: Addin> {
 #[repr(C)]
 #[allow(dead_code)]
 struct UserLanguageBase<T: Addin> {
-    _vptr4: Box<UserLanguageBaseVTable<T>>,
+    _vptr4: usize,
     destroy: unsafe extern "system" fn(*mut *mut ComponentBase<T>),
     memory: Option<&'static MemoryManager>,
     addin: T,
 }
 
-pub fn create_component<T: Addin>(addin: T) -> *mut c_void {
+pub unsafe fn create_component<T: Addin>(component: *mut *mut c_void, addin: T) -> c_long {
     let vptr1 = Box::new(InitDoneBaseVTable {
         dtor: 0,
         #[cfg(target_family = "unix")]
@@ -693,26 +690,26 @@ pub fn create_component<T: Addin>(addin: T) -> *mut c_void {
         addin,
     });
 
-    let p = Box::leak(c);
-    p as *mut ComponentBase<T> as *mut c_void
+    *component = Box::into_raw(c) as *mut c_void;
+    1
 }
 
-pub fn destroy_component(component: *mut *mut c_void) {
+pub unsafe fn destroy_component(component: *mut *mut c_void) -> c_long {
     #[repr(C)]
-    #[allow(dead_code)]
     struct ComponentWrapper {
-        vptr1: Box<c_void>,
-        vptr2: Box<c_void>,
-        vptr3: Box<c_void>,
-        vptr4: Box<c_void>,
+        vptr1: usize,
+        vptr2: usize,
+        vptr3: usize,
+        vptr4: usize,
         destroy: unsafe extern "system" fn(*mut *mut c_void),
     }
 
-    unsafe {
-        let wrapper = *component as *mut ComponentWrapper;
-        let wrapper = &mut *wrapper;
-        (wrapper.destroy)(component);
-    }
+    let wrapper = *component as *mut ComponentWrapper;
+    let wrapper = &mut *wrapper;
+    (wrapper.destroy)(component);
+    *component = ptr::null_mut();
+
+    0
 }
 
 #[repr(C)]
@@ -759,11 +756,16 @@ pub struct Connection {
     vptr1: &'static ConnectionVTable,
 }
 
-fn strlen(s: *const u16) -> usize {
-    let mut i = 0;
-    while unsafe { *s.add(i) } != 0 {
+unsafe fn get_str<'a>(s: *const u16) -> &'a [u16] {
+    unsafe fn strlen(s: *const u16) -> usize {
+        let mut i = 0;
+        while unsafe { *s.add(i) } != 0 {
+            i += 1;
+        }
         i += 1;
+        i
     }
-    i += 1;
-    i
+
+    let len = strlen(s);
+    from_raw_parts(s, len)
 }
