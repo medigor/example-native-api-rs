@@ -1,7 +1,6 @@
 use std::{
     ffi::{c_int, c_long, c_ulong, c_void},
-    mem::size_of,
-    ptr,
+    ptr::{self, NonNull},
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
@@ -64,55 +63,59 @@ impl<'a> ReturnValue<'a> {
     }
 
     pub fn set_str(self, val: &[u16]) {
-        let Some(data) = self.mem.alloc_memory::<u16>(val.len()) else {
+        let Some(ptr) = self.mem.alloc_str(val.len()) else {
             *self.result = false;
             return;
         };
 
-        data.copy_from_slice(val);
+        unsafe { ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len()) };
 
         self.variant.vt = VariantType::PWSTR;
-        self.variant.value.data_str.ptr = data.as_ptr() as *mut u16;
-        self.variant.value.data_str.len = data.len() as u32;
+        self.variant.value.data_str.ptr = ptr.as_ptr();
+        self.variant.value.data_str.len = val.len() as u32;
     }
 
     pub fn set_blob(self, val: &[u8]) {
-        let Some(data) = self.mem.alloc_memory::<u8>(val.len()) else {
+        let Some(ptr) = self.mem.alloc_blob(val.len()) else {
             *self.result = false;
             return;
         };
 
-        data.copy_from_slice(val);
+        unsafe { ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len()) };
 
         self.variant.vt = VariantType::BLOB;
-        self.variant.value.data_blob.ptr = data.as_ptr() as *mut u8;
-        self.variant.value.data_blob.len = data.len() as u32;
+        self.variant.value.data_blob.ptr = ptr.as_ptr();
+        self.variant.value.data_blob.len = val.len() as u32;
     }
 
     pub fn alloc_str(self, len: usize) -> Option<&'a mut [u16]> {
-        let Some(data) = self.mem.alloc_memory::<u16>(len) else {
+        let Some(ptr) = self.mem.alloc_str(len) else {
             *self.result = false;
             return None;
         };
 
-        self.variant.vt = VariantType::PWSTR;
-        self.variant.value.data_str.ptr = data.as_ptr() as *mut u16;
-        self.variant.value.data_str.len = data.len() as u32;
+        unsafe { ptr::write_bytes(ptr.as_ptr(), 0, len) };
 
-        Some(data)
+        self.variant.vt = VariantType::PWSTR;
+        self.variant.value.data_str.ptr = ptr.as_ptr();
+        self.variant.value.data_str.len = len as u32;
+
+        Some(unsafe { from_raw_parts_mut(ptr.as_ptr(), len) })
     }
 
     pub fn alloc_blob(self, len: usize) -> Option<&'a mut [u8]> {
-        let Some(data) = self.mem.alloc_memory::<u8>(len) else {
+        let Some(ptr) = self.mem.alloc_blob(len) else {
             *self.result = false;
             return None;
         };
 
-        self.variant.vt = VariantType::BLOB;
-        self.variant.value.data_blob.ptr = data.as_ptr() as *mut u8;
-        self.variant.value.data_blob.len = data.len() as u32;
+        unsafe { ptr::write_bytes(ptr.as_ptr(), 0, len) };
 
-        Some(data)
+        self.variant.vt = VariantType::BLOB;
+        self.variant.value.data_blob.ptr = ptr.as_ptr();
+        self.variant.value.data_blob.len = len as u32;
+
+        Some(unsafe { from_raw_parts_mut(ptr.as_ptr(), len) })
     }
 }
 
@@ -338,11 +341,11 @@ unsafe extern "system" fn register_extension_as<T: Addin>(
 
     let extension_name = component.addin.register_extension_as();
 
-    let Some(data) = allocator.alloc_memory::<u16>(extension_name.len()) else {
+    let Some(ptr) = allocator.alloc_str(extension_name.len()) else {
         return false;
     };
-    data.copy_from_slice(extension_name);
-    *name = data.as_mut_ptr();
+    ptr::copy_nonoverlapping(extension_name.as_ptr(), ptr.as_ptr(), extension_name.len());
+    *name = ptr.as_ptr();
 
     true
 }
@@ -373,12 +376,12 @@ unsafe extern "system" fn get_prop_name<T: Addin>(
     let Some(prop_name) = component.addin.get_prop_name(num as usize, alias as usize) else {
         return ptr::null();
     };
-    let Some(name) = allocator.alloc_memory::<u16>(prop_name.len()) else {
+    let Some(ptr) = allocator.alloc_str(prop_name.len()) else {
         return ptr::null();
     };
+    ptr::copy_nonoverlapping(prop_name.as_ptr(), ptr.as_ptr(), prop_name.len());
 
-    name.copy_from_slice(prop_name);
-    name.as_ptr()
+    ptr.as_ptr()
 }
 
 unsafe extern "system" fn get_prop_val<T: Addin>(
@@ -446,12 +449,13 @@ unsafe extern "system" fn get_method_name<T: Addin>(
     let Some(method_name) = component.addin.get_method_name(num as usize, alias as usize) else {
         return ptr::null();
     };
-    let Some(name) = allocator.alloc_memory::<u16>(method_name.len()) else {
+    let Some(ptr) = allocator.alloc_str(method_name.len()) else {
         return ptr::null();
     };
 
-    name.copy_from_slice(method_name);
-    name.as_ptr()
+    ptr::copy_nonoverlapping(method_name.as_ptr(), ptr.as_ptr(), method_name.len());
+
+    ptr.as_ptr()
 }
 
 unsafe extern "system" fn get_n_params<T: Addin>(this: &mut This<1, T>, num: c_long) -> c_long {
@@ -672,16 +676,26 @@ struct MemoryManagerVTable {
 
 #[repr(C)]
 struct MemoryManager {
-    vptr1: &'static MemoryManagerVTable,
+    vptr: &'static MemoryManagerVTable,
 }
 
 impl MemoryManager {
-    pub fn alloc_memory<'a, T>(&self, size: usize) -> Option<&'a mut [T]> {
-        let mut data = ptr::null_mut::<c_void>();
+    pub fn alloc_blob(&self, size: usize) -> Option<NonNull<u8>> {
+        let mut ptr = ptr::null_mut::<c_void>();
         unsafe {
-            if (self.vptr1.alloc_memory)(self, &mut data, (size * size_of::<T>()) as c_ulong) {
-                let d = from_raw_parts_mut(data as *mut T, size);
-                Some(d)
+            if (self.vptr.alloc_memory)(self, &mut ptr, size as c_ulong) {
+                NonNull::new(ptr as *mut u8)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn alloc_str(&self, size: usize) -> Option<NonNull<u16>> {
+        let mut ptr = ptr::null_mut::<c_void>();
+        unsafe {
+            if (self.vptr.alloc_memory)(self, &mut ptr, size as c_ulong * 2) {
+                NonNull::new(ptr as *mut u16)
             } else {
                 None
             }
