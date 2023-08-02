@@ -1,17 +1,17 @@
-mod addin1;
-mod addin2;
+pub mod add_in;
 mod ffi;
+mod myaddin;
 
 use std::{
     ffi::{c_int, c_long, c_void},
     sync::atomic::{AtomicI32, Ordering},
 };
 
-use addin1::Addin1;
 use ffi::{destroy_component, AttachType};
+use myaddin::MyAddIn;
 use utf16_lit::utf16_null;
 
-use crate::{addin2::Addin2, ffi::create_component};
+use crate::ffi::create_component;
 
 pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 
@@ -20,11 +20,7 @@ pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 pub unsafe extern "C" fn GetClassObject(name: *const u16, component: *mut *mut c_void) -> c_long {
     match *name as u8 {
         b'1' => {
-            let addin = Addin1::new();
-            create_component(component, addin)
-        }
-        b'2' => {
-            let addin = Addin2::new();
+            let addin = MyAddIn::new();
             create_component(component, addin)
         }
         _ => 0,
@@ -41,7 +37,7 @@ pub unsafe extern "C" fn DestroyObject(component: *mut *mut c_void) -> c_long {
 #[no_mangle]
 pub extern "C" fn GetClassNames() -> *const u16 {
     // small strings for performance
-    utf16_null!("1|2").as_ptr()
+    utf16_null!("1").as_ptr()
 }
 
 #[allow(non_snake_case)]

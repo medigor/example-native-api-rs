@@ -1,4 +1,10 @@
-use crate::ffi::{Addin, Connection, ParamValue, ReturnValue, Tm};
+use crate::{
+    add_in::AddIn,
+    ffi::{
+        connection::Connection,
+        types::{ParamValue, ReturnValue, Tm},
+    },
+};
 use utf16_lit::utf16_null;
 
 const PROPS: &[&[u16]] = &[
@@ -11,9 +17,9 @@ const PROPS: &[&[u16]] = &[
     &utf16_null!("PropBlob"),
 ];
 
-const METHODS: &[&[u16]] = &[&utf16_null!("Method1")];
+const METHODS: &[&[u16]] = &[&utf16_null!("Method1"), &utf16_null!("ExtEvent")];
 
-pub struct Addin1 {
+pub struct MyAddIn {
     test: i32,
     prop_i32: i32,
     prop_f64: f64,
@@ -21,11 +27,12 @@ pub struct Addin1 {
     prop_date: Tm,
     prop_str: String,
     prop_blob: Vec<u8>,
+    connection: Option<&'static Connection>,
 }
 
-impl Addin1 {
-    pub fn new() -> Addin1 {
-        Addin1 {
+impl MyAddIn {
+    pub fn new() -> MyAddIn {
+        MyAddIn {
             test: 11111,
             prop_i32: 22222,
             prop_f64: 333.33,
@@ -33,16 +40,18 @@ impl Addin1 {
             prop_date: Tm::default(),
             prop_str: String::from("00000"),
             prop_blob: Vec::new(),
+            connection: None,
         }
     }
 }
 
-impl Drop for Addin1 {
+impl Drop for MyAddIn {
     fn drop(&mut self) {}
 }
 
-impl Addin for Addin1 {
+impl AddIn for MyAddIn {
     fn init(&mut self, _interface: &'static Connection) -> bool {
+        self.connection = Some(_interface);
         true
     }
 
@@ -171,6 +180,7 @@ impl Addin for Addin1 {
     fn get_n_params(&mut self, num: usize) -> usize {
         match num {
             0 => 3,
+            1 => 0,
             _ => 0,
         }
     }
@@ -187,6 +197,7 @@ impl Addin for Addin1 {
     fn has_ret_val(&mut self, num: usize) -> bool {
         match num {
             0 => true,
+            1 => true,
             _ => false,
         }
     }
@@ -206,6 +217,13 @@ impl Addin for Addin1 {
                     }
                 }
                 ret_value.set_str(buf.as_slice());
+                true
+            }
+            1 => {
+                let Some(con) = self.connection else { return false };
+                let res = con.external_event("asd", "asd", "asd");
+
+                ret_value.set_bool(res);
                 true
             }
             _ => false,
