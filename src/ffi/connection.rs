@@ -33,14 +33,30 @@ pub struct Connection {
 }
 
 impl Connection {
+    pub fn add_error(&self, code: c_ushort, source: &str, description: &str) -> bool {
+        unsafe {
+            let source_ptr = source.encode_utf16().collect::<Vec<u16>>().as_mut_ptr();
+            let description_ptr = description
+                .encode_utf16()
+                .collect::<Vec<u16>>()
+                .as_mut_ptr();
+            (self.vptr1.add_error)(self, code, source_ptr, description_ptr, 0)
+        }
+    }
+
     pub fn external_event(&self, caller: &str, name: &str, data: &str) -> bool {
         unsafe {
-            let caller_ptr = utf16_null!("caller").as_mut_ptr();
-            let name_ptr = utf16_null!("name").as_mut_ptr();
-            let data_ptr = utf16_null!("data").as_mut_ptr();
+            let caller_ptr = caller.encode_utf16().collect::<Vec<u16>>().as_mut_ptr();
+            let name_ptr = name.encode_utf16().collect::<Vec<u16>>().as_mut_ptr();
+            let data_ptr = data.encode_utf16().collect::<Vec<u16>>().as_mut_ptr();
             (self.vptr1.external_event)(self, caller_ptr, name_ptr, data_ptr)
         }
     }
+
+    pub fn set_event_buffer_depth(&self, depth: c_long) -> bool {
+        unsafe { (self.vptr1.set_event_buffer_depth)(self, depth) }
+    }
+
     pub fn get_event_buffer_depth(&self) -> c_long {
         unsafe { (self.vptr1.get_event_buffer_depth)(self) }
     }

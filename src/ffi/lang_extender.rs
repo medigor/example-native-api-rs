@@ -4,7 +4,7 @@ use std::{
     slice::from_raw_parts,
 };
 
-use crate::add_in::AddIn;
+use crate::add_in::AddInWrapper;
 
 use super::{
     get_str,
@@ -13,7 +13,7 @@ use super::{
 };
 
 #[repr(C)]
-pub struct LanguageExtenderBaseVTable<T: AddIn> {
+pub struct LanguageExtenderBaseVTable<T: AddInWrapper> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
@@ -43,7 +43,7 @@ pub struct LanguageExtenderBaseVTable<T: AddIn> {
     ) -> bool,
 }
 
-unsafe extern "system" fn register_extension_as<T: AddIn>(
+unsafe extern "system" fn register_extension_as<T: AddInWrapper>(
     this: &mut This<1, T>,
     name: *mut *mut u16,
 ) -> bool {
@@ -63,12 +63,15 @@ unsafe extern "system" fn register_extension_as<T: AddIn>(
     true
 }
 
-unsafe extern "system" fn get_n_props<T: AddIn>(this: &mut This<1, T>) -> c_long {
+unsafe extern "system" fn get_n_props<T: AddInWrapper>(this: &mut This<1, T>) -> c_long {
     let component = this.get_component();
     component.addin.get_n_props() as c_long
 }
 
-unsafe extern "system" fn find_prop<T: AddIn>(this: &mut This<1, T>, name: *const u16) -> c_long {
+unsafe extern "system" fn find_prop<T: AddInWrapper>(
+    this: &mut This<1, T>,
+    name: *const u16,
+) -> c_long {
     let component = this.get_component();
     let name = get_str(name);
     match component.addin.find_prop(name) {
@@ -77,7 +80,7 @@ unsafe extern "system" fn find_prop<T: AddIn>(this: &mut This<1, T>, name: *cons
     }
 }
 
-unsafe extern "system" fn get_prop_name<T: AddIn>(
+unsafe extern "system" fn get_prop_name<T: AddInWrapper>(
     this: &mut This<1, T>,
     num: c_long,
     alias: c_long,
@@ -97,7 +100,7 @@ unsafe extern "system" fn get_prop_name<T: AddIn>(
     ptr.as_ptr()
 }
 
-unsafe extern "system" fn get_prop_val<T: AddIn>(
+unsafe extern "system" fn get_prop_val<T: AddInWrapper>(
     component: &mut This<1, T>,
     num: c_long,
     val: &mut TVariant,
@@ -116,7 +119,7 @@ unsafe extern "system" fn get_prop_val<T: AddIn>(
     component.addin.get_prop_val(num as usize, return_value) && result
 }
 
-unsafe extern "system" fn set_prop_val<T: AddIn>(
+unsafe extern "system" fn set_prop_val<T: AddInWrapper>(
     this: &mut This<1, T>,
     num: c_long,
     val: &TVariant,
@@ -126,22 +129,31 @@ unsafe extern "system" fn set_prop_val<T: AddIn>(
     component.addin.set_prop_val(num as usize, &param)
 }
 
-unsafe extern "system" fn is_prop_readable<T: AddIn>(this: &mut This<1, T>, num: c_long) -> bool {
+unsafe extern "system" fn is_prop_readable<T: AddInWrapper>(
+    this: &mut This<1, T>,
+    num: c_long,
+) -> bool {
     let component = this.get_component();
     component.addin.is_prop_readable(num as usize)
 }
 
-unsafe extern "system" fn is_prop_writable<T: AddIn>(this: &mut This<1, T>, num: c_long) -> bool {
+unsafe extern "system" fn is_prop_writable<T: AddInWrapper>(
+    this: &mut This<1, T>,
+    num: c_long,
+) -> bool {
     let component = this.get_component();
     component.addin.is_prop_writable(num as usize)
 }
 
-unsafe extern "system" fn get_n_methods<T: AddIn>(this: &mut This<1, T>) -> c_long {
+unsafe extern "system" fn get_n_methods<T: AddInWrapper>(this: &mut This<1, T>) -> c_long {
     let component = this.get_component();
     component.addin.get_n_methods() as c_long
 }
 
-unsafe extern "system" fn find_method<T: AddIn>(this: &mut This<1, T>, name: *const u16) -> c_long {
+unsafe extern "system" fn find_method<T: AddInWrapper>(
+    this: &mut This<1, T>,
+    name: *const u16,
+) -> c_long {
     let component = this.get_component();
     let name = get_str(name);
     match component.addin.find_method(name) {
@@ -150,7 +162,7 @@ unsafe extern "system" fn find_method<T: AddIn>(this: &mut This<1, T>, name: *co
     }
 }
 
-unsafe extern "system" fn get_method_name<T: AddIn>(
+unsafe extern "system" fn get_method_name<T: AddInWrapper>(
     this: &mut This<1, T>,
     num: c_long,
     alias: c_long,
@@ -171,12 +183,15 @@ unsafe extern "system" fn get_method_name<T: AddIn>(
     ptr.as_ptr()
 }
 
-unsafe extern "system" fn get_n_params<T: AddIn>(this: &mut This<1, T>, num: c_long) -> c_long {
+unsafe extern "system" fn get_n_params<T: AddInWrapper>(
+    this: &mut This<1, T>,
+    num: c_long,
+) -> c_long {
     let component = this.get_component();
     component.addin.get_n_params(num as usize) as c_long
 }
 
-unsafe extern "system" fn get_param_def_value<T: AddIn>(
+unsafe extern "system" fn get_param_def_value<T: AddInWrapper>(
     this: &mut This<1, T>,
     method_num: c_long,
     param_num: c_long,
@@ -200,12 +215,15 @@ unsafe extern "system" fn get_param_def_value<T: AddIn>(
         && result
 }
 
-unsafe extern "system" fn has_ret_val<T: AddIn>(this: &mut This<1, T>, method_num: c_long) -> bool {
+unsafe extern "system" fn has_ret_val<T: AddInWrapper>(
+    this: &mut This<1, T>,
+    method_num: c_long,
+) -> bool {
     let component = this.get_component();
     component.addin.has_ret_val(method_num as usize)
 }
 
-unsafe extern "system" fn call_as_proc<T: AddIn>(
+unsafe extern "system" fn call_as_proc<T: AddInWrapper>(
     this: &mut This<1, T>,
     method_num: c_long,
     params: *const TVariant,
@@ -222,7 +240,7 @@ unsafe extern "system" fn call_as_proc<T: AddIn>(
         .call_as_proc(method_num as usize, param_values.as_slice())
 }
 
-unsafe extern "system" fn call_as_func<T: AddIn>(
+unsafe extern "system" fn call_as_func<T: AddInWrapper>(
     this: &mut This<1, T>,
     method_num: c_long,
     ret_value: &mut TVariant,
@@ -252,7 +270,7 @@ unsafe extern "system" fn call_as_func<T: AddIn>(
         && result
 }
 
-impl<T: AddIn> LanguageExtenderBaseVTable<T> {
+impl<T: AddInWrapper> LanguageExtenderBaseVTable<T> {
     pub fn new() -> Self {
         Self {
             dtor: 0,

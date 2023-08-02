@@ -14,4 +14,5 @@ panic = "abort"     # Abort on panic
 strip = true        # Automatically strip symbols from the binary.
 
 [dependencies]
+ureq = "2.7.1"
 utf16_lit="2.0"

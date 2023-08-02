@@ -3,7 +3,7 @@ use std::{
     ptr,
 };
 
-use crate::add_in::AddIn;
+use crate::add_in::AddInWrapper;
 
 use self::{
     init_base::InitDoneBaseVTable, lang_extender::LanguageExtenderBaseVTable,
@@ -26,11 +26,11 @@ pub enum AttachType {
 }
 
 #[repr(C)]
-struct This<const OFFSET: usize, T: AddIn> {
+struct This<const OFFSET: usize, T: AddInWrapper> {
     ptr: *mut Component<T>,
 }
 
-impl<'a, const OFFSET: usize, T: AddIn> This<OFFSET, T> {
+impl<'a, const OFFSET: usize, T: AddInWrapper> This<OFFSET, T> {
     unsafe fn get_component(&mut self) -> &'a mut Component<T> {
         let new_ptr = (self as *mut This<OFFSET, T> as *mut c_void)
             .sub(OFFSET * std::mem::size_of::<usize>());
@@ -39,28 +39,28 @@ impl<'a, const OFFSET: usize, T: AddIn> This<OFFSET, T> {
 }
 
 #[repr(C)]
-struct LocaleBaseVTable<T: AddIn> {
+struct LocaleBaseVTable<T: AddInWrapper> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
     set_locale: unsafe extern "system" fn(&mut This<2, T>, *const u16),
 }
 
-unsafe extern "system" fn set_locale<T: AddIn>(this: &mut This<2, T>, loc: *const u16) {
+unsafe extern "system" fn set_locale<T: AddInWrapper>(this: &mut This<2, T>, loc: *const u16) {
     let component = this.get_component();
     let loc = get_str(loc);
     component.addin.set_locale(loc)
 }
 
 #[repr(C)]
-struct UserLanguageBaseVTable<T: AddIn> {
+struct UserLanguageBaseVTable<T: AddInWrapper> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
     set_user_interface_language_code: unsafe extern "system" fn(&mut This<3, T>, *const u16),
 }
 
-unsafe extern "system" fn set_user_interface_language_code<T: AddIn>(
+unsafe extern "system" fn set_user_interface_language_code<T: AddInWrapper>(
     this: &mut This<3, T>,
     lang: *const u16,
 ) {
@@ -70,7 +70,7 @@ unsafe extern "system" fn set_user_interface_language_code<T: AddIn>(
 }
 
 #[repr(C)]
-struct Component<T: AddIn> {
+struct Component<T: AddInWrapper> {
     vptr1: Box<InitDoneBaseVTable<T>>,
     vptr2: Box<LanguageExtenderBaseVTable<T>>,
     vptr3: Box<LocaleBaseVTable<T>>,
@@ -80,12 +80,12 @@ struct Component<T: AddIn> {
     addin: T,
 }
 
-unsafe extern "system" fn destroy<T: AddIn>(component: *mut *mut Component<T>) {
+unsafe extern "system" fn destroy<T: AddInWrapper>(component: *mut *mut Component<T>) {
     let comp = Box::from_raw(*component);
     drop(comp);
 }
 
-pub unsafe fn create_component<T: AddIn>(component: *mut *mut c_void, addin: T) -> c_long {
+pub unsafe fn create_component<T: AddInWrapper>(component: *mut *mut c_void, addin: T) -> c_long {
     let vptr1 = Box::new(InitDoneBaseVTable::new());
     let vptr2 = Box::new(LanguageExtenderBaseVTable::new());
     let vptr3 = Box::new(LocaleBaseVTable {
