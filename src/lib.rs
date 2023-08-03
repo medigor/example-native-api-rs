@@ -6,8 +6,11 @@ use add_in::{
     AddIn, AddInContainer, ComponentFuncDescription, ComponentPropDescription,
 };
 use ffi::{
-    connection::Connection, destroy_component, types::ParamValue,
-    utils::from_os_string, AttachType,
+    connection::Connection,
+    destroy_component,
+    types::ParamValue,
+    utils::{from_os_string, os_string},
+    AttachType,
 };
 
 use color_eyre::eyre::{eyre, Result};
@@ -62,6 +65,17 @@ impl AddInDescription {
                     ),
                     Self::timer,
                 ),
+                (
+                    ComponentFuncDescription::new::<0>(
+                        vec![
+                            &utf16_null!("ПолучитьХэТэТэПэ"),
+                            &utf16_null!("FetchHTTP"),
+                        ],
+                        true,
+                        &[],
+                    ),
+                    Self::fetch,
+                ),
             ],
 
             some_prop_container: 0,
@@ -95,6 +109,12 @@ impl AddInDescription {
         });
 
         Ok(Some(ParamValue::I32(sleep_duration_ms)))
+    }
+
+    fn fetch(&mut self, _params: &[ParamValue]) -> Result<Option<ParamValue>> {
+        let Ok(result) = ureq::post("https://echo.hoppscotch.io").send_string("smth") else {return Err(eyre!("Failed to fetch"));};
+        let Ok(body) = result.into_string() else { return Err(eyre!("Failed to get body"));};
+        Ok(Some(ParamValue::Str(os_string(&body))))
     }
 }
 
