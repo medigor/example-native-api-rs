@@ -232,7 +232,7 @@ unsafe extern "system" fn call_as_proc<T: AddInWrapper>(
     let component = this.get_component();
     let param_values = from_raw_parts(params, size_array as usize)
         .iter()
-        .map(|x| ParamValue::from(x))
+        .map(ParamValue::from)
         .collect::<Vec<ParamValue>>();
 
     component
@@ -261,7 +261,7 @@ unsafe extern "system" fn call_as_func<T: AddInWrapper>(
 
     let param_values = from_raw_parts(params, size_array as usize)
         .iter()
-        .map(|x| ParamValue::from(x))
+        .map(ParamValue::from)
         .collect::<Vec<ParamValue>>();
 
     component

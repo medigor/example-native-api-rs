@@ -20,9 +20,9 @@ pub mod utils;
 #[repr(C)]
 #[derive(Debug)]
 pub enum AttachType {
-    CanAttachNotIsolated = 1,
-    CanAttachIsolated,
-    CanAttachAny,
+    NotIsolated = 1,
+    Isolated,
+    Any,
 }
 
 #[repr(C)]

@@ -1,9 +1,8 @@
-use std::default;
-
 use crate::ffi::{
     connection::Connection,
     types::{ParamValue, ReturnValue},
 };
+use color_eyre::eyre::{Result};
 
 pub struct ComponentPropDescription {
     pub name: &'static [u16],
@@ -12,23 +11,30 @@ pub struct ComponentPropDescription {
 }
 
 pub struct ComponentFuncDescription {
-    pub name: &'static [u16],
+    pub names: Vec<&'static [u16]>,
     pub params_count: usize,
     pub returns_val: bool,
-    pub default_values: &'static [Option<ParamValue<'static>>],
+    pub default_values: &'static [Option<ParamValue>],
 }
 impl ComponentFuncDescription {
-    pub fn new<const params_count: usize>(
-        name: &'static [u16],
+    pub fn new<const PARAMS_COUNT: usize>(
+        names: Vec<&'static [u16]>,
         returns_val: bool,
-        default_values: &'static [Option<ParamValue<'static>>; params_count],
+        default_values: &'static [Option<ParamValue>; PARAMS_COUNT],
     ) -> Self {
         Self {
-            name,
-            params_count,
+            names,
+            params_count: PARAMS_COUNT,
             returns_val,
             default_values,
         }
+    }
+
+    pub fn str_names(&self ) -> Vec<String> {
+        self.names.iter().map(|name_utf16| {            
+            let name_string = String::from_utf16_lossy(name_utf16).trim_matches(char::from(0)).to_string();
+            name_string
+        }).collect()        
     }
 }
 
@@ -38,17 +44,17 @@ pub trait AddIn {
     fn list_parameters(&self) -> Vec<ComponentPropDescription> {
         Vec::new()
     }
-    fn list_functions(&self) -> Vec<ComponentFuncDescription> {
+    fn list_functions(&self) -> Vec<&ComponentFuncDescription> {
         Vec::new()
     }
-    fn get_parameter(&self, name: &str) -> Option<ParamValue> {
+    fn get_parameter(&self, _name: &str) -> Option<ParamValue> {
         None
     }
-    fn set_parameter(&mut self, name: &str, value: &ParamValue) -> bool {
+    fn set_parameter(&mut self, _name: &str, _value: &ParamValue) -> bool {
         false
     }
-    fn call_function(&mut self, name: &str, params: &[ParamValue]) -> Option<ParamValue> {
-        None
+    fn call_function(&mut self, _name: &str, _params: &[ParamValue]) -> Result<Option<ParamValue>> {
+        Ok(None)
     }
 }
 
@@ -62,8 +68,7 @@ impl<T: AddIn> AddInContainer<T> {
     }
 }
 
-impl<T: AddIn> AddInWrapper for AddInContainer<T>{
-
+impl<T: AddIn> AddInWrapper for AddInContainer<T> {
     fn init(&mut self, interface: &'static Connection) -> bool {
         self.add_in.init(interface)
     }
@@ -95,11 +100,9 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
             .list_parameters()
             .get(num)
             .map(|x| x.name)
-            .or_else(|| self.add_in.list_parameters().get(alias).map(|x| x.name))
     }
 
-    fn get_prop_val(&self, num: usize, val: ReturnValue) -> bool {      
-
+    fn get_prop_val(&self, num: usize, val: ReturnValue) -> bool {
         let param_desc_binding = self.add_in.list_parameters();
         let Some(param_desc) = param_desc_binding.get(num) else { 
             return false 
@@ -115,12 +118,12 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         };
 
         match param_data {
-            ParamValue::Str(data_unwrapped) => val.set_str(data_unwrapped),
             ParamValue::I32(data_unwrapped) => val.set_i32(data_unwrapped),
             ParamValue::Bool(data_unwrapped) => val.set_bool(data_unwrapped),
             ParamValue::F64(data_unwrapped) => val.set_f64(data_unwrapped),
             ParamValue::Date(data_unwrapped) => val.set_date(data_unwrapped),
-            ParamValue::Blob(data_unwrapped) => val.set_blob(data_unwrapped),
+            ParamValue::Str(data_unwrapped) => val.set_str(&data_unwrapped),
+            ParamValue::Blob(data_unwrapped) => val.set_blob(&data_unwrapped),
             ParamValue::Empty => val.set_empty(),
         }
         true
@@ -135,7 +138,7 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         if !param_desc.writable {
             return false;
         };
-        
+
         let name_string = String::from_utf16_lossy(param_desc.name);
         let name_utf8 = name_string.as_str().trim_matches(char::from(0));
         self.add_in.set_parameter(name_utf8, val)
@@ -146,7 +149,7 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         let Some(param_desc) = param_desc_binding.get(num) else { 
             return false 
         };
-        param_desc.readable     
+        param_desc.readable
     }
 
     fn is_prop_writable(&self, num: usize) -> bool {
@@ -157,23 +160,25 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         param_desc.writable
     }
 
-    fn get_n_methods(&self) -> usize{
+    fn get_n_methods(&self) -> usize {
         self.add_in.list_functions().len()
     }
 
-    fn find_method(&self, name: &[u16]) -> Option<usize>{
-        self.add_in.list_functions().iter().position(|x| x.name == name)
+    fn find_method(&self, name: &[u16]) -> Option<usize> {
+        self.add_in
+            .list_functions()
+            .iter()
+            .position(|x| x.names.contains(&name))
     }
 
-    fn get_method_name(&self, num: usize, alias: usize) -> Option<&'static [u16]>{
+    fn get_method_name(&self, num: usize, alias: usize) -> Option<&'static [u16]> {
         self.add_in
             .list_functions()
             .get(num)
-            .map(|x| x.name)
-            .or_else(|| self.add_in.list_functions().get(alias).map(|x| x.name))
+            .map(|x| x.names[0])
     }
 
-    fn get_n_params(&self, num: usize) -> usize{
+    fn get_n_params(&self, num: usize) -> usize {
         let binding = self.add_in.list_functions();
         let Some(func_desc) = binding.get(num) else { 
             return 0 
@@ -186,23 +191,23 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         method_num: usize,
         param_num: usize,
         value: ReturnValue,
-    ) -> bool{
+    ) -> bool {
         let func_desc_binding = self.add_in.list_functions();
         let Some(func_desc) = func_desc_binding.get(method_num) else { 
             return false 
         };
         let Some(default_value_option) = func_desc.default_values.get(param_num) else { 
             return false 
-        };        
+        };
         let Some(default_value) = default_value_option else { 
             return false 
         };
 
         match default_value {
-            ParamValue::Bool(data) => value.set_bool(data.clone()),
-            ParamValue::I32(data) => value.set_i32(data.clone()),
-            ParamValue::F64(data) => value.set_f64(data.clone()),
-            ParamValue::Date(data) => value.set_date(data.clone()),
+            ParamValue::Bool(data) => value.set_bool(*data),
+            ParamValue::I32(data) => value.set_i32(*data),
+            ParamValue::F64(data) => value.set_f64(*data),
+            ParamValue::Date(data) => value.set_date(*data),
             ParamValue::Str(data) => value.set_str(data),
             ParamValue::Blob(data) => value.set_blob(data),
             ParamValue::Empty => value.set_empty(),
@@ -210,7 +215,7 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         true
     }
 
-    fn has_ret_val(&self, method_num: usize) -> bool{
+    fn has_ret_val(&self, method_num: usize) -> bool {
         let func_desc_binding = self.add_in.list_functions();
         let Some(func_desc) = func_desc_binding.get(method_num) else { 
             return false 
@@ -218,15 +223,18 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         func_desc.returns_val
     }
 
-    fn call_as_proc(&mut self, method_num: usize, params: &[ParamValue]) -> bool{
+    fn call_as_proc(&mut self, method_num: usize, params: &[ParamValue]) -> bool {
         let func_desc_binding = self.add_in.list_functions();
         let Some(func_desc) = func_desc_binding.get(method_num) else { 
             return false 
         };
 
-        let name_string = String::from_utf16_lossy(func_desc.name);
+        let name_string = String::from_utf16_lossy(func_desc.names[0]);
         let name_utf8 = name_string.as_str().trim_matches(char::from(0));
-        let _result = self.add_in.call_function(name_utf8, params);
+        let call_result = match self.add_in.call_function(name_utf8, params) {
+            Ok(r) => r,
+            Err(err) => return false,
+        };
         true
     }
 
@@ -234,33 +242,36 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T>{
         &mut self,
         method_num: usize,
         params: &[ParamValue],
-        val: ReturnValue
-    ) -> bool{
+        val: ReturnValue,
+    ) -> bool {
         let func_desc_binding = self.add_in.list_functions();
         let Some(func_desc) = func_desc_binding.get(method_num) else { 
             return false 
         };
         if !func_desc.returns_val {
-            return false
+            return false;
         }
 
-        let name_string = String::from_utf16_lossy(func_desc.name);
+        let name_string = String::from_utf16_lossy(func_desc.names[0]);
         let name_utf8 = name_string.as_str().trim_matches(char::from(0));
-        let Some(result) = self.add_in.call_function(name_utf8, params) else {return false};
-        match result {
+        let call_result = match self.add_in.call_function(name_utf8, params) {
+            Ok(r) => r,
+            Err(err) => return false,
+        };
+        let Some(return_value) = call_result else {return false};
+        match return_value {
             ParamValue::Bool(data) => val.set_bool(data),
             ParamValue::I32(data) => val.set_i32(data),
             ParamValue::F64(data) => val.set_f64(data),
             ParamValue::Date(data) => val.set_date(data),
-            ParamValue::Str(data) => val.set_str(data),
-            ParamValue::Blob(data) => val.set_blob(data),
+            ParamValue::Str(data) => val.set_str(&data),
+            ParamValue::Blob(data) => val.set_blob(&data),
             ParamValue::Empty => val.set_empty(),
-        }        
+        }
         true
     }
-    fn set_locale(&mut self, loc: &[u16]){
-    }
-    fn set_user_interface_language_code(&mut self, lang: &[u16]){}
+    fn set_locale(&mut self, _loc: &[u16]) {}
+    fn set_user_interface_language_code(&mut self, _lang: &[u16]) {}
 }
 
 pub trait AddInWrapper {
@@ -291,7 +302,12 @@ pub trait AddInWrapper {
     ) -> bool;
     fn has_ret_val(&self, method_num: usize) -> bool;
     fn call_as_proc(&mut self, method_num: usize, params: &[ParamValue]) -> bool;
-    fn call_as_func(&mut self, method_num: usize, params: &[ParamValue], val: ReturnValue) -> bool;
+    fn call_as_func(
+        &mut self,
+        method_num: usize,
+        params: &[ParamValue],
+        val: ReturnValue,
+    ) -> bool;
     fn set_locale(&mut self, loc: &[u16]);
     fn set_user_interface_language_code(&mut self, lang: &[u16]);
 }

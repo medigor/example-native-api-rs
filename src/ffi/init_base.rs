@@ -1,7 +1,7 @@
 use std::ffi::c_long;
 
 use super::{connection::Connection, memory_manager::MemoryManager, This};
-use crate::add_in::{AddIn, AddInWrapper};
+use crate::add_in::AddInWrapper;
 
 #[repr(C)]
 pub struct InitDoneBaseVTable<T: AddInWrapper> {

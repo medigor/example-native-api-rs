@@ -7,12 +7,13 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [profile.release]
-opt-level = "z"     # Optimize for size.
-lto = true          # Enable Link Time Optimization
-codegen-units = 1   # Reduce number of codegen units to increase optimizations.
-panic = "abort"     # Abort on panic
-strip = true        # Automatically strip symbols from the binary.
+opt-level = "z"   # Optimize for size.
+lto = true        # Enable Link Time Optimization
+codegen-units = 1 # Reduce number of codegen units to increase optimizations.
+panic = "abort"   # Abort on panic
+strip = true      # Automatically strip symbols from the binary.
 
 [dependencies]
+color-eyre = "0.6.2"
 ureq = "2.7.1"
-utf16_lit="2.0"
+utf16_lit = "2.0"

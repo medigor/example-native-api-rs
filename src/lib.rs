@@ -1,6 +1,16 @@
 pub mod add_in;
 mod ffi;
 
+use crate::ffi::create_component;
+use add_in::{
+    AddIn, AddInContainer, ComponentFuncDescription, ComponentPropDescription,
+};
+use ffi::{
+    connection::Connection, destroy_component, types::ParamValue,
+    utils::from_os_string, AttachType,
+};
+
+use color_eyre::eyre::{eyre, Result};
 use std::{
     ffi::{c_int, c_long, c_void},
     sync::{
@@ -10,18 +20,18 @@ use std::{
     thread,
     time::Duration,
 };
-
-use add_in::{AddIn, AddInContainer, ComponentFuncDescription, ComponentPropDescription};
-use ffi::{connection::Connection, destroy_component, types::ParamValue, AttachType};
 use utf16_lit::utf16_null;
-
-use crate::ffi::create_component;
 
 pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 
 struct AddInDescription {
     name: &'static [u16],
     connection: Arc<Option<&'static Connection>>,
+
+    functions: Vec<(
+        ComponentFuncDescription,
+        fn(&mut Self, &[ParamValue]) -> Result<Option<ParamValue>>,
+    )>,
 
     some_prop_container: i32,
 }
@@ -31,21 +41,66 @@ impl AddInDescription {
         Self {
             name: &utf16_null!("MyAddIn"),
             connection: Arc::new(None),
+
+            functions: vec![
+                (
+                    ComponentFuncDescription::new::<0>(
+                        vec![
+                            &utf16_null!("Итерировать"),
+                            &utf16_null!("Iterate"),
+                        ],
+                        false,
+                        &[],
+                    ),
+                    Self::iterate,
+                ),
+                (
+                    ComponentFuncDescription::new::<1>(
+                        vec![&utf16_null!("Таймер"), &utf16_null!("Timer")],
+                        true,
+                        &[Some(ParamValue::I32(1000))],
+                    ),
+                    Self::timer,
+                ),
+            ],
+
             some_prop_container: 0,
         }
     }
 
-    fn iterate(&mut self) -> Result<(), &str> {
+    fn iterate(
+        &mut self,
+        _params: &[ParamValue],
+    ) -> Result<Option<ParamValue>> {
         if self.some_prop_container >= 105 {
-            return Err("container is too big");
+            return Err(eyre!("Prop is too big"));
         }
         self.some_prop_container += 1;
-        Ok(())
+        Ok(None)
+    }
+
+    fn timer(&mut self, params: &[ParamValue]) -> Result<Option<ParamValue>> {
+        let sleep_duration_ms = match params.get(0) {
+            Some(ParamValue::I32(val)) => *val,
+            _ => return Err(eyre!("Invalid parameter")),
+        };
+
+        let connection = self.connection.clone();
+        let name = from_os_string(self.name);
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(1));
+            if let Some(connection) = &*connection {
+                connection.external_event(&name, "TimerEnd", "OK");
+            }
+        });
+
+        Ok(Some(ParamValue::I32(sleep_duration_ms)))
     }
 }
 
 impl AddIn for AddInDescription {
     fn init(&mut self, interface: &'static Connection) -> bool {
+        interface.set_event_buffer_depth(10);
         self.connection = Arc::new(Some(interface));
         self.some_prop_container = 100;
         true
@@ -55,33 +110,18 @@ impl AddIn for AddInDescription {
         self.name
     }
 
-    fn call_function(&mut self, name: &str, params: &[ParamValue]) -> Option<ParamValue> {
-        match name.trim_end() {
-            "iterate" => {
-                let Err(_e) = self.iterate() else { return None};
-                None
-            }
-            "err" => {
-                let Some(con) = self.connection.as_deref() else { return None };
-                con.add_error(13, "err", "error that was bound to happen");
-                None
-            }
-            "timer" => {
-                let ParamValue::I32(duration_ms) = params[0] else { return None };
-                let con_clone = self.connection.clone();
-                thread::spawn(move || {
-                    let Some(con) = con_clone.as_deref() else { return };
-                    if duration_ms <= 0 {
-                        return;
-                    }
-                    thread::sleep(Duration::from_millis(duration_ms as u64));
-                    con.external_event("timer", "timer", "timer");
-                });
+    fn call_function(
+        &mut self,
+        name: &str,
+        params: &[ParamValue],
+    ) -> Result<Option<ParamValue>> {
+        let func = self
+            .functions
+            .iter()
+            .find(|(desc, _)| desc.str_names().iter().any(|n| n == name));
 
-                Some(ParamValue::I32(duration_ms))
-            }
-            _ => None,
-        }
+        let Some(func) = func.map(|(_, callback)| callback) else { return Err(eyre!("No function with such name")) };
+        func(self, params)
     }
 
     fn get_parameter(&self, name: &str) -> Option<ParamValue> {
@@ -102,16 +142,8 @@ impl AddIn for AddInDescription {
         }
     }
 
-    fn list_functions(&self) -> Vec<ComponentFuncDescription> {
-        vec![
-            ComponentFuncDescription::new::<0>(&utf16_null!("iterate"), false, &[]),
-            ComponentFuncDescription::new::<0>(&utf16_null!("err"), false, &[]),
-            ComponentFuncDescription::new::<1>(
-                &utf16_null!("timer"),
-                true,
-                &[Some(ParamValue::I32(0))],
-            ),
-        ]
+    fn list_functions(&self) -> Vec<&ComponentFuncDescription> {
+        self.functions.iter().map(|(desc, _)| desc).collect()
     }
 
     fn list_parameters(&self) -> Vec<ComponentPropDescription> {
@@ -125,10 +157,14 @@ impl AddIn for AddInDescription {
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub unsafe extern "C" fn GetClassObject(name: *const u16, component: *mut *mut c_void) -> c_long {
+pub unsafe extern "C" fn GetClassObject(
+    name: *const u16,
+    component: *mut *mut c_void,
+) -> c_long {
     match *name as u8 {
         b'1' => {
-            let my_add_in_container = AddInContainer::new(AddInDescription::new());
+            let my_add_in_container =
+                AddInContainer::new(AddInDescription::new());
             create_component(component, my_add_in_container)
         }
         _ => 0,
@@ -158,5 +194,5 @@ pub unsafe extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
 #[allow(non_snake_case)]
 #[no_mangle]
 pub extern "C" fn GetAttachType() -> AttachType {
-    AttachType::CanAttachAny
+    AttachType::Any
 }
