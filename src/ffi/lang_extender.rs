@@ -17,23 +17,31 @@ pub struct LanguageExtenderBaseVTable<T: AddInWrapper> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    register_extension_as: unsafe extern "system" fn(&mut This<1, T>, *mut *mut u16) -> bool,
+    register_extension_as:
+        unsafe extern "system" fn(&mut This<1, T>, *mut *mut u16) -> bool,
     get_n_props: unsafe extern "system" fn(&mut This<1, T>) -> c_long,
     find_prop: unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
-    get_prop_name: unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
-    get_prop_val: unsafe extern "system" fn(&mut This<1, T>, c_long, &mut TVariant) -> bool,
+    get_prop_name:
+        unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
+    get_prop_val:
+        unsafe extern "system" fn(&mut This<1, T>, c_long, &mut TVariant) -> bool,
     set_prop_val: unsafe extern "system" fn(&mut This<1, T>, c_long, &TVariant) -> bool,
     is_prop_readable: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
     is_prop_writable: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
     get_n_methods: unsafe extern "system" fn(&mut This<1, T>) -> c_long,
     find_method: unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
-    get_method_name: unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
+    get_method_name:
+        unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
     get_n_params: unsafe extern "system" fn(&mut This<1, T>, c_long) -> c_long,
     get_param_def_value:
         unsafe extern "system" fn(&mut This<1, T>, c_long, c_long, &mut TVariant) -> bool,
     has_ret_val: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
-    call_as_proc:
-        unsafe extern "system" fn(&mut This<1, T>, c_long, *const TVariant, c_long) -> bool,
+    call_as_proc: unsafe extern "system" fn(
+        &mut This<1, T>,
+        c_long,
+        *const TVariant,
+        c_long,
+    ) -> bool,
     call_as_func: unsafe extern "system" fn(
         &mut This<1, T>,
         c_long,
@@ -145,7 +153,9 @@ unsafe extern "system" fn is_prop_writable<T: AddInWrapper>(
     component.addin.is_prop_writable(num as usize)
 }
 
-unsafe extern "system" fn get_n_methods<T: AddInWrapper>(this: &mut This<1, T>) -> c_long {
+unsafe extern "system" fn get_n_methods<T: AddInWrapper>(
+    this: &mut This<1, T>,
+) -> c_long {
     let component = this.get_component();
     component.addin.get_n_methods() as c_long
 }
@@ -209,10 +219,11 @@ unsafe extern "system" fn get_param_def_value<T: AddInWrapper>(
         result: &mut result,
     };
 
-    component
-        .addin
-        .get_param_def_value(method_num as usize, param_num as usize, return_value)
-        && result
+    component.addin.get_param_def_value(
+        method_num as usize,
+        param_num as usize,
+        return_value,
+    ) && result
 }
 
 unsafe extern "system" fn has_ret_val<T: AddInWrapper>(
@@ -264,10 +275,11 @@ unsafe extern "system" fn call_as_func<T: AddInWrapper>(
         .map(ParamValue::from)
         .collect::<Vec<ParamValue>>();
 
-    component
-        .addin
-        .call_as_func(method_num as usize, param_values.as_slice(), return_value)
-        && result
+    component.addin.call_as_func(
+        method_num as usize,
+        param_values.as_slice(),
+        return_value,
+    ) && result
 }
 
 impl<T: AddInWrapper> LanguageExtenderBaseVTable<T> {

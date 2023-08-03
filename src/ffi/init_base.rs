@@ -9,7 +9,8 @@ pub struct InitDoneBaseVTable<T: AddInWrapper> {
     #[cfg(target_family = "unix")]
     dtor2: usize,
     init: unsafe extern "system" fn(&mut This<0, T>, &'static Connection) -> bool,
-    set_mem_manager: unsafe extern "system" fn(&mut This<0, T>, &'static MemoryManager) -> bool,
+    set_mem_manager:
+        unsafe extern "system" fn(&mut This<0, T>, &'static MemoryManager) -> bool,
     get_info: unsafe extern "system" fn(&mut This<0, T>) -> c_long,
     done: unsafe extern "system" fn(&mut This<0, T>),
 }

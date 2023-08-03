@@ -46,7 +46,10 @@ struct LocaleBaseVTable<T: AddInWrapper> {
     set_locale: unsafe extern "system" fn(&mut This<2, T>, *const u16),
 }
 
-unsafe extern "system" fn set_locale<T: AddInWrapper>(this: &mut This<2, T>, loc: *const u16) {
+unsafe extern "system" fn set_locale<T: AddInWrapper>(
+    this: &mut This<2, T>,
+    loc: *const u16,
+) {
     let component = this.get_component();
     let loc = get_str(loc);
     component.addin.set_locale(loc)
@@ -57,7 +60,8 @@ struct UserLanguageBaseVTable<T: AddInWrapper> {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    set_user_interface_language_code: unsafe extern "system" fn(&mut This<3, T>, *const u16),
+    set_user_interface_language_code:
+        unsafe extern "system" fn(&mut This<3, T>, *const u16),
 }
 
 unsafe extern "system" fn set_user_interface_language_code<T: AddInWrapper>(
@@ -85,7 +89,10 @@ unsafe extern "system" fn destroy<T: AddInWrapper>(component: *mut *mut Componen
     drop(comp);
 }
 
-pub unsafe fn create_component<T: AddInWrapper>(component: *mut *mut c_void, addin: T) -> c_long {
+pub unsafe fn create_component<T: AddInWrapper>(
+    component: *mut *mut c_void,
+    addin: T,
+) -> c_long {
     let vptr1 = Box::new(InitDoneBaseVTable::new());
     let vptr2 = Box::new(LanguageExtenderBaseVTable::new());
     let vptr3 = Box::new(LocaleBaseVTable {
