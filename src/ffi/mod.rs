@@ -84,7 +84,9 @@ struct Component<T: AddInWrapper> {
     addin: T,
 }
 
-unsafe extern "system" fn destroy<T: AddInWrapper>(component: *mut *mut Component<T>) {
+unsafe extern "system" fn destroy<T: AddInWrapper>(
+    component: *mut *mut Component<T>,
+) {
     let comp = Box::from_raw(*component);
     drop(comp);
 }

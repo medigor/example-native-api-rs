@@ -21,12 +21,19 @@ struct ConnectionVTable {
         c_long,
         *mut *mut u16,
     ) -> bool,
-    write: unsafe extern "system" fn(&Connection, *mut u16, &mut TVariant) -> bool,
-    register_profile_as: unsafe extern "system" fn(&Connection, *mut u16) -> bool,
-    set_event_buffer_depth: unsafe extern "system" fn(&Connection, c_long) -> bool,
+    write:
+        unsafe extern "system" fn(&Connection, *mut u16, &mut TVariant) -> bool,
+    register_profile_as:
+        unsafe extern "system" fn(&Connection, *mut u16) -> bool,
+    set_event_buffer_depth:
+        unsafe extern "system" fn(&Connection, c_long) -> bool,
     get_event_buffer_depth: unsafe extern "system" fn(&Connection) -> c_long,
-    external_event:
-        unsafe extern "system" fn(&Connection, *mut u16, *mut u16, *mut u16) -> bool,
+    external_event: unsafe extern "system" fn(
+        &Connection,
+        *mut u16,
+        *mut u16,
+        *mut u16,
+    ) -> bool,
     clean_event_buffer: unsafe extern "system" fn(&Connection),
     set_status_line: unsafe extern "system" fn(&Connection, *mut u16) -> bool,
     reset_status_line: unsafe extern "system" fn(&Connection),
@@ -38,9 +45,15 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn add_error(&self, code: c_ushort, source: &str, description: &str) -> bool {
+    pub fn add_error(
+        &self,
+        code: c_ushort,
+        source: &str,
+        description: &str,
+    ) -> bool {
         unsafe {
-            let source_ptr = source.encode_utf16().collect::<Vec<u16>>().as_mut_ptr();
+            let source_ptr =
+                source.encode_utf16().collect::<Vec<u16>>().as_mut_ptr();
             let description_ptr = description
                 .encode_utf16()
                 .collect::<Vec<u16>>()

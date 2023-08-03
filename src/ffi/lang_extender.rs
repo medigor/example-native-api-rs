@@ -21,20 +21,37 @@ pub struct LanguageExtenderBaseVTable<T: AddInWrapper> {
         unsafe extern "system" fn(&mut This<1, T>, *mut *mut u16) -> bool,
     get_n_props: unsafe extern "system" fn(&mut This<1, T>) -> c_long,
     find_prop: unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
-    get_prop_name:
-        unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
-    get_prop_val:
-        unsafe extern "system" fn(&mut This<1, T>, c_long, &mut TVariant) -> bool,
-    set_prop_val: unsafe extern "system" fn(&mut This<1, T>, c_long, &TVariant) -> bool,
-    is_prop_readable: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
-    is_prop_writable: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
+    get_prop_name: unsafe extern "system" fn(
+        &mut This<1, T>,
+        c_long,
+        c_long,
+    ) -> *const u16,
+    get_prop_val: unsafe extern "system" fn(
+        &mut This<1, T>,
+        c_long,
+        &mut TVariant,
+    ) -> bool,
+    set_prop_val:
+        unsafe extern "system" fn(&mut This<1, T>, c_long, &TVariant) -> bool,
+    is_prop_readable:
+        unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
+    is_prop_writable:
+        unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
     get_n_methods: unsafe extern "system" fn(&mut This<1, T>) -> c_long,
-    find_method: unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
-    get_method_name:
-        unsafe extern "system" fn(&mut This<1, T>, c_long, c_long) -> *const u16,
+    find_method:
+        unsafe extern "system" fn(&mut This<1, T>, *const u16) -> c_long,
+    get_method_name: unsafe extern "system" fn(
+        &mut This<1, T>,
+        c_long,
+        c_long,
+    ) -> *const u16,
     get_n_params: unsafe extern "system" fn(&mut This<1, T>, c_long) -> c_long,
-    get_param_def_value:
-        unsafe extern "system" fn(&mut This<1, T>, c_long, c_long, &mut TVariant) -> bool,
+    get_param_def_value: unsafe extern "system" fn(
+        &mut This<1, T>,
+        c_long,
+        c_long,
+        &mut TVariant,
+    ) -> bool,
     has_ret_val: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
     call_as_proc: unsafe extern "system" fn(
         &mut This<1, T>,
@@ -65,13 +82,19 @@ unsafe extern "system" fn register_extension_as<T: AddInWrapper>(
     let Some(ptr) = allocator.alloc_str(extension_name.len()) else {
         return false;
     };
-    ptr::copy_nonoverlapping(extension_name.as_ptr(), ptr.as_ptr(), extension_name.len());
+    ptr::copy_nonoverlapping(
+        extension_name.as_ptr(),
+        ptr.as_ptr(),
+        extension_name.len(),
+    );
     *name = ptr.as_ptr();
 
     true
 }
 
-unsafe extern "system" fn get_n_props<T: AddInWrapper>(this: &mut This<1, T>) -> c_long {
+unsafe extern "system" fn get_n_props<T: AddInWrapper>(
+    this: &mut This<1, T>,
+) -> c_long {
     let component = this.get_component();
     component.addin.get_n_props() as c_long
 }
@@ -188,7 +211,11 @@ unsafe extern "system" fn get_method_name<T: AddInWrapper>(
         return ptr::null();
     };
 
-    ptr::copy_nonoverlapping(method_name.as_ptr(), ptr.as_ptr(), method_name.len());
+    ptr::copy_nonoverlapping(
+        method_name.as_ptr(),
+        ptr.as_ptr(),
+        method_name.len(),
+    );
 
     ptr.as_ptr()
 }

@@ -9,14 +9,14 @@ use super::memory_manager::MemoryManager;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub struct Tm {
-    pub sec: c_int,   // seconds after the minute - [0, 60] including leap second
-    pub min: c_int,   // minutes after the hour - [0, 59]
-    pub hour: c_int,  // hours since midnight - [0, 23]
-    pub mday: c_int,  // day of the month - [1, 31]
-    pub mon: c_int,   // months since January - [0, 11]
-    pub year: c_int,  // years since 1900
-    pub wday: c_int,  // days since Sunday - [0, 6]
-    pub yday: c_int,  // days since January 1 - [0, 365]
+    pub sec: c_int, // seconds after the minute - [0, 60] including leap second
+    pub min: c_int, // minutes after the hour - [0, 59]
+    pub hour: c_int, // hours since midnight - [0, 23]
+    pub mday: c_int, // day of the month - [1, 31]
+    pub mon: c_int, // months since January - [0, 11]
+    pub year: c_int, // years since 1900
+    pub wday: c_int, // days since Sunday - [0, 6]
+    pub yday: c_int, // days since January 1 - [0, 365]
     pub isdst: c_int, // daylight savings time flag
 
     #[cfg(target_family = "unix")]
@@ -62,7 +62,9 @@ impl<'a> ReturnValue<'a> {
             return;
         };
 
-        unsafe { ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len()) };
+        unsafe {
+            ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len())
+        };
 
         self.variant.vt = VariantType::WStr;
         self.variant.value.data_str.ptr = ptr.as_ptr();
@@ -75,7 +77,9 @@ impl<'a> ReturnValue<'a> {
             return;
         };
 
-        unsafe { ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len()) };
+        unsafe {
+            ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len())
+        };
 
         self.variant.vt = VariantType::Blob;
         self.variant.value.data_blob.ptr = ptr.as_ptr();

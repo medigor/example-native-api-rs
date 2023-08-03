@@ -8,8 +8,11 @@ struct MemoryManagerVTable {
     dtor: usize,
     #[cfg(target_family = "unix")]
     dtor2: usize,
-    alloc_memory:
-        unsafe extern "system" fn(&MemoryManager, *mut *mut c_void, c_ulong) -> bool,
+    alloc_memory: unsafe extern "system" fn(
+        &MemoryManager,
+        *mut *mut c_void,
+        c_ulong,
+    ) -> bool,
     free_memory: unsafe extern "system" fn(&MemoryManager, *mut *mut c_void),
 }
 

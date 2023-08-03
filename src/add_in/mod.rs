@@ -2,7 +2,7 @@ use crate::ffi::{
     connection::Connection,
     types::{ParamValue, ReturnValue},
 };
-use color_eyre::eyre::{Result};
+use color_eyre::eyre::Result;
 
 pub struct ComponentPropDescription {
     pub name: &'static [u16],
@@ -30,11 +30,16 @@ impl ComponentFuncDescription {
         }
     }
 
-    pub fn str_names(&self ) -> Vec<String> {
-        self.names.iter().map(|name_utf16| {            
-            let name_string = String::from_utf16_lossy(name_utf16).trim_matches(char::from(0)).to_string();
-            name_string
-        }).collect()        
+    pub fn str_names(&self) -> Vec<String> {
+        self.names
+            .iter()
+            .map(|name_utf16| {
+                let name_string = String::from_utf16_lossy(name_utf16)
+                    .trim_matches(char::from(0))
+                    .to_string();
+                name_string
+            })
+            .collect()
     }
 }
 
@@ -53,7 +58,11 @@ pub trait AddIn {
     fn set_parameter(&mut self, _name: &str, _value: &ParamValue) -> bool {
         false
     }
-    fn call_function(&mut self, _name: &str, _params: &[ParamValue]) -> Result<Option<ParamValue>> {
+    fn call_function(
+        &mut self,
+        _name: &str,
+        _params: &[ParamValue],
+    ) -> Result<Option<ParamValue>> {
         Ok(None)
     }
 }
@@ -95,17 +104,18 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
             .position(|x| x.name == name)
     }
 
-    fn get_prop_name(&self, num: usize, alias: usize) -> Option<&'static [u16]> {
-        self.add_in
-            .list_parameters()
-            .get(num)
-            .map(|x| x.name)
+    fn get_prop_name(
+        &self,
+        num: usize,
+        alias: usize,
+    ) -> Option<&'static [u16]> {
+        self.add_in.list_parameters().get(num).map(|x| x.name)
     }
 
     fn get_prop_val(&self, num: usize, val: ReturnValue) -> bool {
         let param_desc_binding = self.add_in.list_parameters();
-        let Some(param_desc) = param_desc_binding.get(num) else { 
-            return false 
+        let Some(param_desc) = param_desc_binding.get(num) else {
+            return false
         };
         if !param_desc.readable {
             return false;
@@ -113,8 +123,8 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
 
         let name_string = String::from_utf16_lossy(param_desc.name);
         let name_utf8 = name_string.as_str().trim_matches(char::from(0));
-        let Some(param_data) = self.add_in.get_parameter(name_utf8) else { 
-            return false 
+        let Some(param_data) = self.add_in.get_parameter(name_utf8) else {
+            return false
         };
 
         match param_data {
@@ -131,8 +141,8 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
 
     fn set_prop_val(&mut self, num: usize, val: &ParamValue) -> bool {
         let param_desc_binding = self.add_in.list_parameters();
-        let Some(param_desc) = param_desc_binding.get(num) else { 
-            return false 
+        let Some(param_desc) = param_desc_binding.get(num) else {
+            return false
         };
 
         if !param_desc.writable {
@@ -146,16 +156,16 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
 
     fn is_prop_readable(&self, num: usize) -> bool {
         let param_desc_binding = self.add_in.list_parameters();
-        let Some(param_desc) = param_desc_binding.get(num) else { 
-            return false 
+        let Some(param_desc) = param_desc_binding.get(num) else {
+            return false
         };
         param_desc.readable
     }
 
     fn is_prop_writable(&self, num: usize) -> bool {
         let param_desc_binding = self.add_in.list_parameters();
-        let Some(param_desc) = param_desc_binding.get(num) else { 
-            return false 
+        let Some(param_desc) = param_desc_binding.get(num) else {
+            return false
         };
         param_desc.writable
     }
@@ -171,17 +181,18 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
             .position(|x| x.names.contains(&name))
     }
 
-    fn get_method_name(&self, num: usize, alias: usize) -> Option<&'static [u16]> {
-        self.add_in
-            .list_functions()
-            .get(num)
-            .map(|x| x.names[0])
+    fn get_method_name(
+        &self,
+        num: usize,
+        alias: usize,
+    ) -> Option<&'static [u16]> {
+        self.add_in.list_functions().get(num).map(|x| x.names[0])
     }
 
     fn get_n_params(&self, num: usize) -> usize {
         let binding = self.add_in.list_functions();
-        let Some(func_desc) = binding.get(num) else { 
-            return 0 
+        let Some(func_desc) = binding.get(num) else {
+            return 0
         };
         func_desc.params_count
     }
@@ -193,14 +204,14 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
         value: ReturnValue,
     ) -> bool {
         let func_desc_binding = self.add_in.list_functions();
-        let Some(func_desc) = func_desc_binding.get(method_num) else { 
-            return false 
+        let Some(func_desc) = func_desc_binding.get(method_num) else {
+            return false
         };
-        let Some(default_value_option) = func_desc.default_values.get(param_num) else { 
-            return false 
+        let Some(default_value_option) = func_desc.default_values.get(param_num) else {
+            return false
         };
-        let Some(default_value) = default_value_option else { 
-            return false 
+        let Some(default_value) = default_value_option else {
+            return false
         };
 
         match default_value {
@@ -217,16 +228,20 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
 
     fn has_ret_val(&self, method_num: usize) -> bool {
         let func_desc_binding = self.add_in.list_functions();
-        let Some(func_desc) = func_desc_binding.get(method_num) else { 
-            return false 
+        let Some(func_desc) = func_desc_binding.get(method_num) else {
+            return false
         };
         func_desc.returns_val
     }
 
-    fn call_as_proc(&mut self, method_num: usize, params: &[ParamValue]) -> bool {
+    fn call_as_proc(
+        &mut self,
+        method_num: usize,
+        params: &[ParamValue],
+    ) -> bool {
         let func_desc_binding = self.add_in.list_functions();
-        let Some(func_desc) = func_desc_binding.get(method_num) else { 
-            return false 
+        let Some(func_desc) = func_desc_binding.get(method_num) else {
+            return false
         };
 
         let name_string = String::from_utf16_lossy(func_desc.names[0]);
@@ -245,8 +260,8 @@ impl<T: AddIn> AddInWrapper for AddInContainer<T> {
         val: ReturnValue,
     ) -> bool {
         let func_desc_binding = self.add_in.list_functions();
-        let Some(func_desc) = func_desc_binding.get(method_num) else { 
-            return false 
+        let Some(func_desc) = func_desc_binding.get(method_num) else {
+            return false
         };
         if !func_desc.returns_val {
             return false;
@@ -285,14 +300,19 @@ pub trait AddInWrapper {
     fn register_extension_as(&mut self) -> &'static [u16];
     fn get_n_props(&self) -> usize;
     fn find_prop(&self, name: &[u16]) -> Option<usize>;
-    fn get_prop_name(&self, num: usize, alias: usize) -> Option<&'static [u16]>;
+    fn get_prop_name(&self, num: usize, alias: usize)
+        -> Option<&'static [u16]>;
     fn get_prop_val(&self, num: usize, val: ReturnValue) -> bool;
     fn set_prop_val(&mut self, num: usize, val: &ParamValue) -> bool;
     fn is_prop_readable(&self, num: usize) -> bool;
     fn is_prop_writable(&self, num: usize) -> bool;
     fn get_n_methods(&self) -> usize;
     fn find_method(&self, name: &[u16]) -> Option<usize>;
-    fn get_method_name(&self, num: usize, alias: usize) -> Option<&'static [u16]>;
+    fn get_method_name(
+        &self,
+        num: usize,
+        alias: usize,
+    ) -> Option<&'static [u16]>;
     fn get_n_params(&self, num: usize) -> usize;
     fn get_param_def_value(
         &self,
@@ -301,7 +321,11 @@ pub trait AddInWrapper {
         value: ReturnValue,
     ) -> bool;
     fn has_ret_val(&self, method_num: usize) -> bool;
-    fn call_as_proc(&mut self, method_num: usize, params: &[ParamValue]) -> bool;
+    fn call_as_proc(
+        &mut self,
+        method_num: usize,
+        params: &[ParamValue],
+    ) -> bool;
     fn call_as_func(
         &mut self,
         method_num: usize,
