@@ -1,5 +1,5 @@
-use crate::ffi::{Addin, Connection, ParamValue, ReturnValue, Tm};
-use utf16_lit::utf16_null;
+use crate::ffi::{Addin, Connection, ParamValue, Tm, Variant};
+use utf16_lit::{utf16, utf16_null};
 
 const PROPS: &[&[u16]] = &[
     &utf16_null!("Test"),
@@ -11,7 +11,7 @@ const PROPS: &[&[u16]] = &[
     &utf16_null!("PropBlob"),
 ];
 
-const METHODS: &[&[u16]] = &[&utf16_null!("Method1")];
+const METHODS: &[&[u16]] = &[&utf16_null!("Method1"), &utf16_null!("Method2")];
 
 pub struct Addin1 {
     test: i32,
@@ -61,10 +61,10 @@ impl Addin for Addin1 {
     }
 
     fn get_prop_name(&mut self, num: usize, _alias: usize) -> Option<&'static [u16]> {
-        PROPS.get(num).map(|&x| x)
+        PROPS.get(num).copied()
     }
 
-    fn get_prop_val(&mut self, num: usize, val: ReturnValue) -> bool {
+    fn get_prop_val(&mut self, num: usize, val: &mut Variant) -> bool {
         match num {
             0 => val.set_i32(self.test),
             1 => val.set_i32(self.prop_i32),
@@ -73,10 +73,10 @@ impl Addin for Addin1 {
             4 => val.set_date(self.prop_date),
             5 => {
                 let s: Vec<u16> = self.prop_str.encode_utf16().collect();
-                val.set_str(s.as_slice());
+                return val.set_str(s.as_slice());
             }
             6 => {
-                val.set_blob(self.prop_blob.as_slice());
+                return val.set_blob(self.prop_blob.as_slice());
             }
             _ => return false,
         };
@@ -165,12 +165,13 @@ impl Addin for Addin1 {
     }
 
     fn get_method_name(&mut self, num: usize, _alias: usize) -> Option<&'static [u16]> {
-        METHODS.get(num).map(|&x| x)
+        METHODS.get(num).copied()
     }
 
     fn get_n_params(&mut self, num: usize) -> usize {
         match num {
             0 => 3,
+            1 => 2,
             _ => 0,
         }
     }
@@ -179,7 +180,7 @@ impl Addin for Addin1 {
         &mut self,
         _method_num: usize,
         _param_num: usize,
-        _value: ReturnValue,
+        _value: Variant,
     ) -> bool {
         true
     }
@@ -187,25 +188,48 @@ impl Addin for Addin1 {
     fn has_ret_val(&mut self, num: usize) -> bool {
         match num {
             0 => true,
+            1 => true,
             _ => false,
         }
     }
 
-    fn call_as_proc(&mut self, _num: usize, _params: &[ParamValue]) -> bool {
+    fn call_as_proc(&mut self, _num: usize, _params: &mut [Variant]) -> bool {
         false
     }
 
-    fn call_as_func(&mut self, num: usize, params: &[ParamValue], ret_value: ReturnValue) -> bool {
+    fn call_as_func(
+        &mut self,
+        num: usize,
+        params: &mut [Variant],
+        ret_value: &mut Variant,
+    ) -> bool {
         match num {
             0 => {
                 let mut buf = Vec::<u16>::new();
-                for p in params {
-                    match p {
+                for param in params {
+                    match param.get() {
                         ParamValue::Str(x) => buf.extend_from_slice(x),
                         _ => return false,
                     }
                 }
-                ret_value.set_str(buf.as_slice());
+                ret_value.set_str(buf.as_slice())
+            }
+            1 => {
+                for (i, param) in params.iter_mut().enumerate() {
+                    match param.get() {
+                        ParamValue::Empty => {
+                            if i == 0 {
+                                if !param.set_str(&utf16!("Return value")) {
+                                    return false;
+                                }
+                            } else {
+                                param.set_i32(1)
+                            }
+                        }
+                        _ => return false,
+                    }
+                }
+                ret_value.set_bool(true);
                 true
             }
             _ => false,

@@ -1,15 +1,18 @@
 use std::{
     ffi::{c_int, c_long, c_ulong, c_void},
+    mem::MaybeUninit,
     ptr::{self, NonNull},
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
+const MAX_PARAMS: usize = 8;
+
 #[repr(C)]
 #[derive(Debug)]
 pub enum AttachType {
-    CanAttachNotIsolated = 1,
-    CanAttachIsolated,
-    CanAttachAny,
+    NotIsolated = 1,
+    Isolated,
+    Any,
 }
 
 #[repr(C)]
@@ -31,87 +34,106 @@ pub struct Tm {
     pub zone: std::ffi::c_char, // timezone abbreviation
 }
 
-pub struct ReturnValue<'a> {
+pub struct Variant<'a> {
     mem: &'a MemoryManager,
     variant: &'a mut TVariant,
-    result: &'a mut bool,
 }
 
 #[allow(dead_code)]
-impl<'a> ReturnValue<'a> {
-    pub fn set_empty(self) {
-        self.variant.vt = VariantType::EMPTY;
+impl<'a> Variant<'a> {
+    pub fn get(&self) -> ParamValue {
+        ParamValue::from(self.variant as &_)
     }
-    pub fn set_i32(self, val: i32) {
+    fn free_memory(&mut self) {
+        match self.variant.vt {
+            VariantType::Pwstr => unsafe {
+                self.mem.free_str(&mut self.variant.value.data_str.ptr)
+            },
+            VariantType::Blob => unsafe {
+                self.mem.free_blob(&mut self.variant.value.data_blob.ptr)
+            },
+            _ => (),
+        }
+    }
+    pub fn set_empty(&mut self) {
+        self.free_memory();
+        self.variant.vt = VariantType::Empty;
+    }
+    pub fn set_i32(&mut self, val: i32) {
+        self.free_memory();
         self.variant.vt = VariantType::I4;
         self.variant.value.i32 = val;
     }
 
-    pub fn set_bool(self, val: bool) {
-        self.variant.vt = VariantType::BOOL;
+    pub fn set_bool(&mut self, val: bool) {
+        self.free_memory();
+        self.variant.vt = VariantType::Bool;
         self.variant.value.bool = val;
     }
 
-    pub fn set_f64(self, val: f64) {
+    pub fn set_f64(&mut self, val: f64) {
+        self.free_memory();
         self.variant.vt = VariantType::R8;
         self.variant.value.f64 = val;
     }
 
-    pub fn set_date(self, val: Tm) {
+    pub fn set_date(&mut self, val: Tm) {
+        self.free_memory();
         self.variant.vt = VariantType::TM;
         self.variant.value.tm = val;
     }
 
-    pub fn set_str(self, val: &[u16]) {
+    #[must_use]
+    pub fn set_str(&mut self, val: &[u16]) -> bool {
         let Some(ptr) = self.mem.alloc_str(val.len()) else {
-            *self.result = false;
-            return;
+            return false;
         };
+        self.free_memory();
 
         unsafe { ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len()) };
 
-        self.variant.vt = VariantType::PWSTR;
+        self.variant.vt = VariantType::Pwstr;
         self.variant.value.data_str.ptr = ptr.as_ptr();
         self.variant.value.data_str.len = val.len() as u32;
+        true
     }
 
-    pub fn set_blob(self, val: &[u8]) {
+    #[must_use]
+    pub fn set_blob(&mut self, val: &[u8]) -> bool {
         let Some(ptr) = self.mem.alloc_blob(val.len()) else {
-            *self.result = false;
-            return;
+            return false;
         };
+        self.free_memory();
 
         unsafe { ptr::copy_nonoverlapping(val.as_ptr(), ptr.as_ptr(), val.len()) };
 
-        self.variant.vt = VariantType::BLOB;
+        self.variant.vt = VariantType::Blob;
         self.variant.value.data_blob.ptr = ptr.as_ptr();
         self.variant.value.data_blob.len = val.len() as u32;
+        true
     }
 
-    pub fn alloc_str(self, len: usize) -> Option<&'a mut [u16]> {
+    pub fn alloc_str(&mut self, len: usize) -> Option<&'a mut [u16]> {
         let Some(ptr) = self.mem.alloc_str(len) else {
-            *self.result = false;
             return None;
         };
 
-        unsafe { ptr::write_bytes(ptr.as_ptr(), 0, len) };
+        self.free_memory();
 
-        self.variant.vt = VariantType::PWSTR;
+        self.variant.vt = VariantType::Pwstr;
         self.variant.value.data_str.ptr = ptr.as_ptr();
         self.variant.value.data_str.len = len as u32;
 
         Some(unsafe { from_raw_parts_mut(ptr.as_ptr(), len) })
     }
 
-    pub fn alloc_blob(self, len: usize) -> Option<&'a mut [u8]> {
+    pub fn alloc_blob(&mut self, len: usize) -> Option<&'a mut [u8]> {
         let Some(ptr) = self.mem.alloc_blob(len) else {
-            *self.result = false;
             return None;
         };
+        self.free_memory();
 
-        unsafe { ptr::write_bytes(ptr.as_ptr(), 0, len) };
-
-        self.variant.vt = VariantType::BLOB;
+        self.variant.vt = VariantType::Blob;
         self.variant.value.data_blob.ptr = ptr.as_ptr();
         self.variant.value.data_blob.len = len as u32;
 
@@ -133,16 +155,16 @@ impl<'a> From<&'a TVariant> for ParamValue<'a> {
     fn from(param: &'a TVariant) -> ParamValue {
         unsafe {
             match param.vt {
-                VariantType::EMPTY => Self::Empty,
-                VariantType::BOOL => Self::Bool(param.value.bool),
+                VariantType::Empty => Self::Empty,
+                VariantType::Bool => Self::Bool(param.value.bool),
                 VariantType::I4 => Self::I32(param.value.i32),
                 VariantType::R8 => Self::F64(param.value.f64),
                 VariantType::TM => Self::Date(param.value.tm),
-                VariantType::PWSTR => Self::Str(from_raw_parts(
+                VariantType::Pwstr => Self::Str(from_raw_parts(
                     param.value.data_str.ptr,
                     param.value.data_str.len as usize,
                 )),
-                VariantType::BLOB => Self::Blob(from_raw_parts(
+                VariantType::Blob => Self::Blob(from_raw_parts(
                     param.value.data_blob.ptr,
                     param.value.data_blob.len as usize,
                 )),
@@ -155,33 +177,33 @@ impl<'a> From<&'a TVariant> for ParamValue<'a> {
 #[repr(u16)]
 #[allow(dead_code)]
 enum VariantType {
-    EMPTY = 0,
-    NULL,
+    Empty = 0,
+    Null,
     I2,        //int16_t
     I4,        //int32_t
     R4,        //float
     R8,        //double
-    DATE,      //DATE (double)
+    Date,      //DATE (double)
     TM,        //struct tm
-    PSTR,      //struct str    string
-    INTERFACE, //struct iface
-    ERROR,     //int32_t errCode
-    BOOL,      //bool
-    VARIANT,   //struct _tVariant *
+    Pstr,      //struct str    string
+    Interface, //struct iface
+    Error,     //int32_t errCode
+    Bool,      //bool
+    Variant,   //struct _tVariant *
     I1,        //int8_t
-    UI1,       //uint8_t
-    UI2,       //uint16_t
-    UI4,       //uint32_t
+    Ui1,       //uint8_t
+    Ui2,       //uint16_t
+    Ui4,       //uint32_t
     I8,        //int64_t
-    UI8,       //uint64_t
-    INT,       //int   Depends on architecture
-    UINT,      //unsigned int  Depends on architecture
-    HRESULT,   //long hRes
-    PWSTR,     //struct wstr
-    BLOB,      //means in struct str binary data contain
-    CLSID,     //UUID
+    Ui8,       //uint64_t
+    Int,       //int   Depends on architecture
+    Uint,      //unsigned int  Depends on architecture
+    Hresult,   //long hRes
+    Pwstr,     //struct wstr
+    Blob,      //means in struct str binary data contain
+    Clsid,     //UUID
 
-    UNDEFINED = 0xFFFF,
+    Undefined = 0xFFFF,
 }
 
 #[repr(C)]
@@ -227,7 +249,7 @@ pub trait Addin {
     fn get_n_props(&mut self) -> usize;
     fn find_prop(&mut self, name: &[u16]) -> Option<usize>;
     fn get_prop_name(&mut self, num: usize, alias: usize) -> Option<&'static [u16]>;
-    fn get_prop_val(&mut self, num: usize, val: ReturnValue) -> bool;
+    fn get_prop_val(&mut self, num: usize, val: &mut Variant) -> bool;
     fn set_prop_val(&mut self, num: usize, val: &ParamValue) -> bool;
     fn is_prop_readable(&mut self, num: usize) -> bool;
     fn is_prop_writable(&mut self, num: usize) -> bool;
@@ -235,15 +257,15 @@ pub trait Addin {
     fn find_method(&mut self, name: &[u16]) -> Option<usize>;
     fn get_method_name(&mut self, num: usize, alias: usize) -> Option<&'static [u16]>;
     fn get_n_params(&mut self, num: usize) -> usize;
-    fn get_param_def_value(
+    fn get_param_def_value(&mut self, method_num: usize, param_num: usize, value: Variant) -> bool;
+    fn has_ret_val(&mut self, method_num: usize) -> bool;
+    fn call_as_proc(&mut self, method_num: usize, params: &mut [Variant]) -> bool;
+    fn call_as_func(
         &mut self,
         method_num: usize,
-        param_num: usize,
-        value: ReturnValue,
+        params: &mut [Variant],
+        val: &mut Variant,
     ) -> bool;
-    fn has_ret_val(&mut self, method_num: usize) -> bool;
-    fn call_as_proc(&mut self, method_num: usize, params: &[ParamValue]) -> bool;
-    fn call_as_func(&mut self, method_num: usize, params: &[ParamValue], val: ReturnValue) -> bool;
     fn set_locale(&mut self, loc: &[u16]);
     fn set_user_interface_language_code(&mut self, lang: &[u16]);
 }
@@ -319,13 +341,12 @@ struct LanguageExtenderBaseVTable<T: Addin> {
     get_param_def_value:
         unsafe extern "system" fn(&mut This<1, T>, c_long, c_long, &mut TVariant) -> bool,
     has_ret_val: unsafe extern "system" fn(&mut This<1, T>, c_long) -> bool,
-    call_as_proc:
-        unsafe extern "system" fn(&mut This<1, T>, c_long, *const TVariant, c_long) -> bool,
+    call_as_proc: unsafe extern "system" fn(&mut This<1, T>, c_long, *mut TVariant, c_long) -> bool,
     call_as_func: unsafe extern "system" fn(
         &mut This<1, T>,
         c_long,
         &mut TVariant,
-        *const TVariant,
+        *mut TVariant,
         c_long,
     ) -> bool,
 }
@@ -394,13 +415,10 @@ unsafe extern "system" fn get_prop_val<T: Addin>(
         return false;
     };
 
-    let mut result = true;
-    let return_value = ReturnValue {
-        mem,
-        variant: val,
-        result: &mut result,
-    };
-    component.addin.get_prop_val(num as usize, return_value) && result
+    let mut return_value = Variant { mem, variant: val };
+    component
+        .addin
+        .get_prop_val(num as usize, &mut return_value)
 }
 
 unsafe extern "system" fn set_prop_val<T: Addin>(
@@ -446,7 +464,10 @@ unsafe extern "system" fn get_method_name<T: Addin>(
     let Some(allocator) = component.memory else {
         return ptr::null();
     };
-    let Some(method_name) = component.addin.get_method_name(num as usize, alias as usize) else {
+    let Some(method_name) = component
+        .addin
+        .get_method_name(num as usize, alias as usize)
+    else {
         return ptr::null();
     };
     let Some(ptr) = allocator.alloc_str(method_name.len()) else {
@@ -460,7 +481,9 @@ unsafe extern "system" fn get_method_name<T: Addin>(
 
 unsafe extern "system" fn get_n_params<T: Addin>(this: &mut This<1, T>, num: c_long) -> c_long {
     let component = this.get_component();
-    component.addin.get_n_params(num as usize) as c_long
+    let count = component.addin.get_n_params(num as usize);
+    assert!(count <= MAX_PARAMS, "too many parameters");
+    count as _
 }
 
 unsafe extern "system" fn get_param_def_value<T: Addin>(
@@ -474,17 +497,11 @@ unsafe extern "system" fn get_param_def_value<T: Addin>(
         return false;
     };
 
-    let mut result = true;
-    let return_value = ReturnValue {
-        mem,
-        variant: val,
-        result: &mut result,
-    };
+    let return_value = Variant { mem, variant: val };
 
     component
         .addin
         .get_param_def_value(method_num as usize, param_num as usize, return_value)
-        && result
 }
 
 unsafe extern "system" fn has_ret_val<T: Addin>(this: &mut This<1, T>, method_num: c_long) -> bool {
@@ -495,25 +512,7 @@ unsafe extern "system" fn has_ret_val<T: Addin>(this: &mut This<1, T>, method_nu
 unsafe extern "system" fn call_as_proc<T: Addin>(
     this: &mut This<1, T>,
     method_num: c_long,
-    params: *const TVariant,
-    size_array: c_long,
-) -> bool {
-    let component = this.get_component();
-    let param_values = from_raw_parts(params, size_array as usize)
-        .iter()
-        .map(|x| ParamValue::from(x))
-        .collect::<Vec<ParamValue>>();
-
-    component
-        .addin
-        .call_as_proc(method_num as usize, param_values.as_slice())
-}
-
-unsafe extern "system" fn call_as_func<T: Addin>(
-    this: &mut This<1, T>,
-    method_num: c_long,
-    ret_value: &mut TVariant,
-    params: *const TVariant,
+    params: *mut TVariant,
     size_array: c_long,
 ) -> bool {
     let component = this.get_component();
@@ -521,22 +520,53 @@ unsafe extern "system" fn call_as_func<T: Addin>(
         return false;
     };
 
-    let mut result = true;
-    let return_value = ReturnValue {
-        mem,
-        variant: ret_value,
-        result: &mut result,
-    };
+    let size_array = size_array as usize;
 
-    let param_values = from_raw_parts(params, size_array as usize)
-        .iter()
-        .map(|x| ParamValue::from(x))
-        .collect::<Vec<ParamValue>>();
+    let mut param_values: [MaybeUninit<Variant>; MAX_PARAMS] = MaybeUninit::uninit().assume_init();
+    for (x1, x2) in from_raw_parts_mut(params, size_array)
+        .iter_mut()
+        .zip(param_values.iter_mut())
+    {
+        x2.write(Variant { mem, variant: x1 });
+    }
+    let param_values = std::mem::transmute(&mut param_values[..size_array]);
 
     component
         .addin
-        .call_as_func(method_num as usize, param_values.as_slice(), return_value)
-        && result
+        .call_as_proc(method_num as usize, param_values)
+}
+
+unsafe extern "system" fn call_as_func<T: Addin>(
+    this: &mut This<1, T>,
+    method_num: c_long,
+    ret_value: &mut TVariant,
+    params: *mut TVariant,
+    size_array: c_long,
+) -> bool {
+    let component = this.get_component();
+    let Some(mem) = component.memory else {
+        return false;
+    };
+
+    let size_array = size_array as usize;
+
+    let mut return_value = Variant {
+        mem,
+        variant: ret_value,
+    };
+
+    let mut param_values: [MaybeUninit<Variant>; MAX_PARAMS] = MaybeUninit::uninit().assume_init();
+    for (x1, x2) in from_raw_parts_mut(params, size_array)
+        .iter_mut()
+        .zip(param_values.iter_mut())
+    {
+        x2.write(Variant { mem, variant: x1 });
+    }
+    let param_values = std::mem::transmute(&mut param_values[..size_array]);
+
+    component
+        .addin
+        .call_as_func(method_num as usize, param_values, &mut return_value)
 }
 
 #[repr(C)]
@@ -699,6 +729,18 @@ impl MemoryManager {
             } else {
                 None
             }
+        }
+    }
+
+    pub fn free_str(&self, ptr: *mut *mut u16) {
+        unsafe {
+            (self.vptr.free_memory)(self, ptr as _);
+        }
+    }
+
+    pub fn free_blob(&self, ptr: *mut *mut u8) {
+        unsafe {
+            (self.vptr.free_memory)(self, ptr as _);
         }
     }
 }

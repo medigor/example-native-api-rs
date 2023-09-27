@@ -54,5 +54,5 @@ pub unsafe extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
 #[allow(non_snake_case)]
 #[no_mangle]
 pub extern "C" fn GetAttachType() -> AttachType {
-    AttachType::CanAttachAny
+    AttachType::Any
 }

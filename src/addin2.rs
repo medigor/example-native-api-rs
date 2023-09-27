@@ -1,4 +1,4 @@
-use crate::ffi::{Addin, Connection, ParamValue, ReturnValue};
+use crate::ffi::{Addin, Connection, ParamValue, Variant};
 use utf16_lit::utf16_null;
 
 pub struct Addin2 {
@@ -12,20 +12,15 @@ impl Addin2 {
 }
 
 impl Drop for Addin2 {
-    fn drop(&mut self) {
-        
-    }
+    fn drop(&mut self) {}
 }
 
 impl Addin for Addin2 {
     fn init(&mut self, _interface: &'static Connection) -> bool {
-        
         true
     }
 
-    fn done(&mut self) {
-        
-    }
+    fn done(&mut self) {}
 
     fn register_extension_as(&mut self) -> &'static [u16] {
         &utf16_null!("Class2")
@@ -51,7 +46,7 @@ impl Addin for Addin2 {
         }
     }
 
-    fn get_prop_val(&mut self, num: usize, val: ReturnValue) -> bool {
+    fn get_prop_val(&mut self, num: usize, val: &mut Variant) -> bool {
         match num {
             0 => {
                 val.set_i32(self.test1);
@@ -93,7 +88,7 @@ impl Addin for Addin2 {
         &mut self,
         _method_num: usize,
         _param_num: usize,
-        _value: ReturnValue,
+        _value: Variant,
     ) -> bool {
         true
     }
@@ -102,15 +97,15 @@ impl Addin for Addin2 {
         false
     }
 
-    fn call_as_proc(&mut self, _method_num: usize, _params: &[ParamValue]) -> bool {
+    fn call_as_proc(&mut self, _method_num: usize, _params: &mut [Variant]) -> bool {
         false
     }
 
     fn call_as_func(
         &mut self,
         _method_num: usize,
-        _params: &[ParamValue],
-        _val: ReturnValue,
+        _params: &mut [Variant],
+        _val: &mut Variant,
     ) -> bool {
         false
     }

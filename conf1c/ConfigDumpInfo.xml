@@ -1,11 +1,11 @@
 ﻿<?xml version="1.0" encoding="UTF-8"?>
 <ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" format="Hierarchical" version="2.15">
 	<ConfigVersions>
-		<Metadata name="Configuration.Конфигурация" id="72b21170-d6cc-48ee-8426-d69353f61fd5" configVersion="a64d3ffe00e3344f821527065fd9669400000000"/>
-		<Metadata name="Configuration.Конфигурация.HomePageWorkArea" id="29e7f5a4-dc26-408a-bd6e-083b5bf1384c.8" configVersion="0169b7c0855a0e459f04d61506e77aef00000000"/>
-		<Metadata name="DataProcessor.Обработка1" id="33179d0b-730e-44f5-b20c-1af11f7f1f60" configVersion="2f45b64f61dc1b4cb42bd668cf3942df00000000"/>
-		<Metadata name="DataProcessor.Обработка1.Form.Форма" id="24033a67-5ef1-4265-9a88-eb7f279ce1cb" configVersion="b173f3c73e1fdd489319ecfd372edab800000000"/>
-		<Metadata name="DataProcessor.Обработка1.Form.Форма.Form" id="24033a67-5ef1-4265-9a88-eb7f279ce1cb.0" configVersion="7894c5dc6490f14d92e085d4d4b8847300000000"/>
-		<Metadata name="Language.Русский" id="e3ac9659-5250-4530-9ca6-3f4f4ef6413a" configVersion="0a61ebedb1993c4a9ed758c68a381d7d00000000"/>
+		<Metadata name="Configuration.Конфигурация" id="72b21170-d6cc-48ee-8426-d69353f61fd5" configVersion="c712ec3fc94b2b4182496f0827cf4bff00000000"/>
+		<Metadata name="Configuration.Конфигурация.HomePageWorkArea" id="29e7f5a4-dc26-408a-bd6e-083b5bf1384c.8" configVersion="33c420fc5cc12348954bd259bb0c136000000000"/>
+		<Metadata name="DataProcessor.Обработка1" id="33179d0b-730e-44f5-b20c-1af11f7f1f60" configVersion="86cf80c3e753094aa1ab6bbb3cce13b400000000"/>
+		<Metadata name="DataProcessor.Обработка1.Form.Форма" id="24033a67-5ef1-4265-9a88-eb7f279ce1cb" configVersion="b49039a0c3894b41a732cee38bfae78d00000000"/>
+		<Metadata name="DataProcessor.Обработка1.Form.Форма.Form" id="24033a67-5ef1-4265-9a88-eb7f279ce1cb.0" configVersion="4773009ef4f1164eadd05bc75928d86900000000"/>
+		<Metadata name="Language.Русский" id="e3ac9659-5250-4530-9ca6-3f4f4ef6413a" configVersion="63a64f60c307414fabfabd0d777a47cc00000000"/>
 	</ConfigVersions>
 </ConfigDumpInfo>
