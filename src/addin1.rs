@@ -1,17 +1,21 @@
-use crate::ffi::{Addin, Connection, ParamValue, Tm, Variant};
-use utf16_lit::{utf16, utf16_null};
+use utf16_lit::utf16;
+
+use crate::{
+    ffi::{Addin, ParamValue, Tm, Variant},
+    name,
+};
 
 const PROPS: &[&[u16]] = &[
-    &utf16_null!("Test"),
-    &utf16_null!("PropI32"),
-    &utf16_null!("PropF64"),
-    &utf16_null!("PropBool"),
-    &utf16_null!("PropDate"),
-    &utf16_null!("PropStr"),
-    &utf16_null!("PropBlob"),
+    name!("Test"),
+    name!("PropI32"),
+    name!("PropF64"),
+    name!("PropBool"),
+    name!("PropDate"),
+    name!("PropStr"),
+    name!("PropBlob"),
 ];
 
-const METHODS: &[&[u16]] = &[&utf16_null!("Method1"), &utf16_null!("Method2")];
+const METHODS: &[&[u16]] = &[name!("Method1"), name!("Method2")];
 
 pub struct Addin1 {
     test: i32,
@@ -42,14 +46,8 @@ impl Drop for Addin1 {
 }
 
 impl Addin for Addin1 {
-    fn init(&mut self, _interface: &'static Connection) -> bool {
-        true
-    }
-
-    fn done(&mut self) {}
-
     fn register_extension_as(&mut self) -> &'static [u16] {
-        &utf16_null!("Class1")
+        name!("Class1")
     }
 
     fn get_n_props(&mut self) -> usize {
@@ -235,8 +233,4 @@ impl Addin for Addin1 {
             _ => false,
         }
     }
-
-    fn set_locale(&mut self, _loc: &[u16]) {}
-
-    fn set_user_interface_language_code(&mut self, _lang: &[u16]) {}
 }

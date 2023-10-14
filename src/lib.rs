@@ -1,6 +1,8 @@
 mod addin1;
 mod addin2;
+mod simple;
 mod ffi;
+mod macros;
 
 use std::{
     ffi::{c_int, c_long, c_void},
@@ -8,10 +10,9 @@ use std::{
 };
 
 use addin1::Addin1;
-use ffi::{destroy_component, AttachType};
+use addin2::Addin2;
+use ffi::{create_component, destroy_component, AttachType};
 use utf16_lit::utf16_null;
-
-use crate::{addin2::Addin2, ffi::create_component};
 
 pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 
