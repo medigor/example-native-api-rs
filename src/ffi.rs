@@ -1,11 +1,10 @@
 use std::{
     ffi::{c_int, c_long, c_ulong, c_void},
-    mem::MaybeUninit,
     ptr::{self, NonNull},
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
-const MAX_PARAMS: usize = 8;
+use smallvec::SmallVec;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -481,9 +480,7 @@ unsafe extern "system" fn get_method_name<T: Addin>(
 
 unsafe extern "system" fn get_n_params<T: Addin>(this: &mut This<1, T>, num: c_long) -> c_long {
     let component = this.get_component();
-    let count = component.addin.get_n_params(num as usize);
-    assert!(count <= MAX_PARAMS, "too many parameters");
-    count as _
+    component.addin.get_n_params(num as usize) as _
 }
 
 unsafe extern "system" fn get_param_def_value<T: Addin>(
@@ -522,18 +519,14 @@ unsafe extern "system" fn call_as_proc<T: Addin>(
 
     let size_array = size_array as usize;
 
-    let mut param_values: [MaybeUninit<Variant>; MAX_PARAMS] = MaybeUninit::uninit().assume_init();
-    for (x1, x2) in from_raw_parts_mut(params, size_array)
-        .iter_mut()
-        .zip(param_values.iter_mut())
-    {
-        x2.write(Variant { mem, variant: x1 });
+    let mut param_values = SmallVec::<[Variant; 8]>::new();
+    for variant in from_raw_parts_mut(params, size_array) {
+        param_values.push(Variant { mem, variant });
     }
-    let param_values = std::mem::transmute(&mut param_values[..size_array]);
 
     component
         .addin
-        .call_as_proc(method_num as usize, param_values)
+        .call_as_proc(method_num as usize, &mut param_values)
 }
 
 unsafe extern "system" fn call_as_func<T: Addin>(
@@ -555,18 +548,14 @@ unsafe extern "system" fn call_as_func<T: Addin>(
         variant: ret_value,
     };
 
-    let mut param_values: [MaybeUninit<Variant>; MAX_PARAMS] = MaybeUninit::uninit().assume_init();
-    for (x1, x2) in from_raw_parts_mut(params, size_array)
-        .iter_mut()
-        .zip(param_values.iter_mut())
-    {
-        x2.write(Variant { mem, variant: x1 });
+    let mut param_values = SmallVec::<[Variant; 8]>::new();
+    for variant in from_raw_parts_mut(params, size_array) {
+        param_values.push(Variant { mem, variant });
     }
-    let param_values = std::mem::transmute(&mut param_values[..size_array]);
 
     component
         .addin
-        .call_as_func(method_num as usize, param_values, &mut return_value)
+        .call_as_func(method_num as usize, &mut param_values, &mut return_value)
 }
 
 #[repr(C)]
