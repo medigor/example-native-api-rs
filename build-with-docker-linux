@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if which podman>/dev/null; 
+then 
+PROGRAM=podman; 
+else 
+PROGRAM=docker; 
+fi
+
+$PROGRAM run -it --rm -v $PWD:/project docker.io/library/rust:1-bullseye cargo build --manifest-path /project/Cargo.toml --release
