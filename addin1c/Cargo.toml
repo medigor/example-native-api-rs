@@ -1,0 +1,8 @@
+[package]
+name = "addin1c"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+smallvec = "1.11"
+utf16_lit = "2.0"

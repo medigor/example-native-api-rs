@@ -1,9 +1,4 @@
-use utf16_lit::utf16;
-
-use crate::{
-    ffi::{Addin, ParamValue, Tm, Variant},
-    name,
-};
+use addin1c::{name, ParamValue, RawAddin, Tm, Variant};
 
 const PROPS: &[&[u16]] = &[
     name!("Test"),
@@ -45,7 +40,7 @@ impl Drop for Addin1 {
     fn drop(&mut self) {}
 }
 
-impl Addin for Addin1 {
+impl RawAddin for Addin1 {
     fn register_extension_as(&mut self) -> &'static [u16] {
         name!("Class1")
     }
@@ -217,7 +212,8 @@ impl Addin for Addin1 {
                     match param.get() {
                         ParamValue::Empty => {
                             if i == 0 {
-                                if !param.set_str(&utf16!("Return value")) {
+                                let s = "Return value".encode_utf16().collect::<Vec<u16>>();
+                                if !param.set_str(&s) {
                                     return false;
                                 }
                             } else {

@@ -1,8 +1,5 @@
 mod addin1;
 mod addin2;
-mod simple;
-mod ffi;
-mod macros;
 
 use std::{
     ffi::{c_int, c_long, c_void},
@@ -11,8 +8,7 @@ use std::{
 
 use addin1::Addin1;
 use addin2::Addin2;
-use ffi::{create_component, destroy_component, AttachType};
-use utf16_lit::utf16_null;
+use addin1c::{create_component, destroy_component, name, AttachType};
 
 pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 
@@ -42,7 +38,7 @@ pub unsafe extern "C" fn DestroyObject(component: *mut *mut c_void) -> c_long {
 #[no_mangle]
 pub extern "C" fn GetClassNames() -> *const u16 {
     // small strings for performance
-    utf16_null!("1|2").as_ptr()
+    name!("1|2").as_ptr()
 }
 
 #[allow(non_snake_case)]

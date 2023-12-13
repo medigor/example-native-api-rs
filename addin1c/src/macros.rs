@@ -2,6 +2,6 @@
 #[macro_export]
 macro_rules! name {
     ($text:expr) => {
-        &utf16_lit::utf16_null!($text)
+        &addin1c::utf16_null!($text)
     };
 }

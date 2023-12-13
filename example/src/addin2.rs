@@ -1,7 +1,4 @@
-use crate::{
-    simple::{Addin, MethodInfo, Methods, PropInfo},
-    ffi::{ParamValue, Variant}, name,
-};
+use addin1c::{name, MethodInfo, Methods, ParamValue, PropInfo, SimpleAddin, Variant};
 
 pub struct Addin2 {
     prop1: i32,
@@ -52,7 +49,7 @@ impl Addin2 {
     }
 }
 
-impl Addin for Addin2 {
+impl SimpleAddin for Addin2 {
     fn name() -> &'static [u16] {
         name!("Class2")
     }
