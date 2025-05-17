@@ -7,11 +7,14 @@ use std::{
 };
 
 use addin1::Addin1;
-use addin2::Addin2;
 use addin1c::{create_component, destroy_component, name, AttachType};
+use addin2::Addin2;
 
-pub static mut PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
+pub static PLATFORM_CAPABILITIES: AtomicI32 = AtomicI32::new(-1);
 
+/// # Safety
+///
+/// Component must be non-null.
 #[allow(non_snake_case)]
 #[no_mangle]
 pub unsafe extern "C" fn GetClassObject(name: *const u16, component: *mut *mut c_void) -> c_long {
@@ -28,6 +31,9 @@ pub unsafe extern "C" fn GetClassObject(name: *const u16, component: *mut *mut c
     }
 }
 
+/// # Safety
+///
+/// Component must be returned from `GetClassObject`, the function must be called once for each component.
 #[allow(non_snake_case)]
 #[no_mangle]
 pub unsafe extern "C" fn DestroyObject(component: *mut *mut c_void) -> c_long {
@@ -43,7 +49,7 @@ pub extern "C" fn GetClassNames() -> *const u16 {
 
 #[allow(non_snake_case)]
 #[no_mangle]
-pub unsafe extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
+pub extern "C" fn SetPlatformCapabilities(capabilities: c_int) -> c_int {
     PLATFORM_CAPABILITIES.store(capabilities, Ordering::Relaxed);
     3
 }

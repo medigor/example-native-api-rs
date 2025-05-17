@@ -1,6 +1,6 @@
-use addin1c::{name, ParamValue, RawAddin, Tm, Variant};
+use addin1c::{name, CStr1C, ParamValue, RawAddin, Tm, Variant};
 
-const PROPS: &[&[u16]] = &[
+const PROPS: &[&CStr1C] = &[
     name!("Test"),
     name!("PropI32"),
     name!("PropF64"),
@@ -10,7 +10,7 @@ const PROPS: &[&[u16]] = &[
     name!("PropBlob"),
 ];
 
-const METHODS: &[&[u16]] = &[name!("Method1"), name!("Method2")];
+const METHODS: &[&CStr1C] = &[name!("Method1"), name!("Method2")];
 
 pub struct Addin1 {
     test: i32,
@@ -41,7 +41,7 @@ impl Drop for Addin1 {
 }
 
 impl RawAddin for Addin1 {
-    fn register_extension_as(&mut self) -> &'static [u16] {
+    fn register_extension_as(&mut self) -> &'static CStr1C {
         name!("Class1")
     }
 
@@ -49,11 +49,11 @@ impl RawAddin for Addin1 {
         PROPS.len()
     }
 
-    fn find_prop(&mut self, name: &[u16]) -> Option<usize> {
+    fn find_prop(&mut self, name: &CStr1C) -> Option<usize> {
         PROPS.iter().position(|&x| x == name)
     }
 
-    fn get_prop_name(&mut self, num: usize, _alias: usize) -> Option<&'static [u16]> {
+    fn get_prop_name(&mut self, num: usize, _alias: usize) -> Option<&'static CStr1C> {
         PROPS.get(num).copied()
     }
 
@@ -66,61 +66,61 @@ impl RawAddin for Addin1 {
             4 => val.set_date(self.prop_date),
             5 => {
                 let s: Vec<u16> = self.prop_str.encode_utf16().collect();
-                return val.set_str(s.as_slice());
+                return val.set_str1c(s.as_slice()).is_ok();
             }
             6 => {
-                return val.set_blob(self.prop_blob.as_slice());
+                return val.set_blob(self.prop_blob.as_slice()).is_ok();
             }
             _ => return false,
         };
         true
     }
 
-    fn set_prop_val(&mut self, num: usize, val: &ParamValue) -> bool {
+    fn set_prop_val(&mut self, num: usize, val: &Variant) -> bool {
         match num {
-            0 => match val {
+            0 => match val.get() {
                 ParamValue::I32(x) => {
-                    self.test = *x;
+                    self.test = x;
                     true
                 }
                 _ => false,
             },
-            1 => match val {
+            1 => match val.get() {
                 ParamValue::I32(x) => {
-                    self.prop_i32 = *x;
+                    self.prop_i32 = x;
                     true
                 }
                 _ => false,
             },
-            2 => match val {
+            2 => match val.get() {
                 ParamValue::F64(x) => {
-                    self.prop_f64 = *x;
+                    self.prop_f64 = x;
                     true
                 }
                 _ => false,
             },
-            3 => match val {
+            3 => match val.get() {
                 ParamValue::Bool(x) => {
-                    self.prop_bool = *x;
+                    self.prop_bool = x;
                     true
                 }
                 _ => false,
             },
-            4 => match val {
+            4 => match val.get() {
                 ParamValue::Date(x) => {
-                    self.prop_date = *x;
+                    self.prop_date = x;
                     true
                 }
                 _ => false,
             },
-            5 => match val {
+            5 => match val.get() {
                 ParamValue::Str(x) => {
                     self.prop_str = String::from_utf16(x).unwrap();
                     true
                 }
                 _ => false,
             },
-            6 => match val {
+            6 => match val.get() {
                 ParamValue::Blob(x) => {
                     self.prop_blob.clear();
                     self.prop_blob.extend_from_slice(x);
@@ -137,27 +137,18 @@ impl RawAddin for Addin1 {
     }
 
     fn is_prop_writable(&mut self, num: usize) -> bool {
-        match num {
-            0 => true,
-            1 => true,
-            2 => true,
-            3 => true,
-            4 => true,
-            5 => true,
-            6 => true,
-            _ => false,
-        }
+        matches!(num, 0..=6)
     }
 
     fn get_n_methods(&mut self) -> usize {
         METHODS.len()
     }
 
-    fn find_method(&mut self, name: &[u16]) -> Option<usize> {
+    fn find_method(&mut self, name: &CStr1C) -> Option<usize> {
         METHODS.iter().position(|&x| x == name)
     }
 
-    fn get_method_name(&mut self, num: usize, _alias: usize) -> Option<&'static [u16]> {
+    fn get_method_name(&mut self, num: usize, _alias: usize) -> Option<&'static CStr1C> {
         METHODS.get(num).copied()
     }
 
@@ -179,11 +170,7 @@ impl RawAddin for Addin1 {
     }
 
     fn has_ret_val(&mut self, num: usize) -> bool {
-        match num {
-            0 => true,
-            1 => true,
-            _ => false,
-        }
+        matches!(num, 0 | 1)
     }
 
     fn call_as_proc(&mut self, _num: usize, _params: &mut [Variant]) -> bool {
@@ -205,7 +192,7 @@ impl RawAddin for Addin1 {
                         _ => return false,
                     }
                 }
-                ret_value.set_str(buf.as_slice())
+                ret_value.set_str1c(buf.as_slice()).is_ok()
             }
             1 => {
                 for (i, param) in params.iter_mut().enumerate() {
@@ -213,7 +200,7 @@ impl RawAddin for Addin1 {
                         ParamValue::Empty => {
                             if i == 0 {
                                 let s = "Return value".encode_utf16().collect::<Vec<u16>>();
-                                if !param.set_str(&s) {
+                                if param.set_str1c(s.as_slice()).is_err() {
                                     return false;
                                 }
                             } else {

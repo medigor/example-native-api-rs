@@ -1,4 +1,4 @@
-use addin1c::{name, MethodInfo, Methods, ParamValue, PropInfo, SimpleAddin, Variant};
+use addin1c::{name, AddinResult, CStr1C, MethodInfo, Methods, PropInfo, SimpleAddin, Variant};
 
 pub struct Addin2 {
     prop1: i32,
@@ -9,13 +9,11 @@ impl Addin2 {
         Addin2 { prop1: 0 }
     }
 
-    fn method1(&mut self, param: &mut Variant, ret_value: &mut Variant) -> bool {
-        let ParamValue::I32(value) = param.get() else {
-            return false;
-        };
+    fn method1(&mut self, param: &mut Variant, ret_value: &mut Variant) -> AddinResult {
+        let value = param.get_i32()?;
         self.prop1 = value;
         ret_value.set_i32(value * 2);
-        true
+        Ok(())
     }
 
     fn method2(
@@ -23,34 +21,27 @@ impl Addin2 {
         param1: &mut Variant,
         param2: &mut Variant,
         ret_value: &mut Variant,
-    ) -> bool {
-        let ParamValue::I32(value1) = param1.get() else {
-            return false;
-        };
-        let ParamValue::I32(value2) = param2.get() else {
-            return false;
-        };
+    ) -> AddinResult {
+        let value1 = param1.get_i32()?;
+        let value2 = param2.get_i32()?;
         self.prop1 = value1 + value2;
         ret_value.set_i32(self.prop1);
-        true
+        Ok(())
     }
 
-    fn set_prop1(&mut self, value: &ParamValue) -> bool {
-        let ParamValue::I32(value) = value else {
-            return false;
-        };
-        self.prop1 = *value;
-        true
+    fn set_prop1(&mut self, value: &Variant) -> AddinResult {
+        self.prop1 = value.get_i32()?;
+        Ok(())
     }
 
-    fn get_prop1(&mut self, value: &mut Variant) -> bool {
+    fn get_prop1(&mut self, value: &mut Variant) -> AddinResult {
         value.set_i32(self.prop1);
-        true
+        Ok(())
     }
 }
 
 impl SimpleAddin for Addin2 {
-    fn name() -> &'static [u16] {
+    fn name() -> &'static CStr1C {
         name!("Class2")
     }
 
